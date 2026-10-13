@@ -3,7 +3,7 @@
  * out the way `ThemeText` draws it (`renderFlashTextCanvas` in the element's style), so the rect
  * `layoutTemplate` gives a text is the one its drawing fills.
  */
-import { FLASH_TEXT_GUTTER, FlashTextFieldOverrides, FlashTextFormat, FlashTextRenderer, FlashTextStyleSheet, HABBO_TEXT_STYLES, parseFlashTextMarkup, renderFlashTextCanvas, resolveFlashTextFormat } from '../font/flash-text';
+import { FLASH_TEXT_GUTTER, FlashTextFieldOverrides, FlashTextFormat, FlashTextRenderer, FlashTextStyleSheet, HABBO_TEXT_STYLES, parseFlashTextMarkup, renderBrowserTextCanvas, renderFlashTextCanvas, resolveFlashTextFormat } from '../font/flash-text';
 import { resolveMarkupFace } from '../hooks/useFlashTextCanvas';
 import { flashFaceOverride, fontFaceOverride, TextStyleKey, themeDefaultTextStyle } from '../utils';
 import type { TemplateElement } from './templateData';
@@ -143,7 +143,9 @@ export const measureTemplateText = (element: TemplateElement, text: string, wrap
 
     const format = resolveFlashTextFormat({ style: HABBO_TEXT_STYLES[style], field: flash, face: flashFaceOverride(fontFamily), fontSize });
     const content = markup ? parseFlashTextMarkup(text, format, { resolveFace: resolveMarkupFace, styleSheet }) : text;
-    const rendered = content.length ? renderFlashTextCanvas(content, format, wrapWidth === undefined ? {} : { wordWrap: true, wrapWidth: templateWrapWidth(wrapWidth) }) : null;
+    const options = wrapWidth === undefined ? {} : { wordWrap: true, wrapWidth: templateWrapWidth(wrapWidth) };
+    const runs = typeof content === 'string' ? [ { text: content, format } ] : content;
+    const rendered = content.length ? (renderFlashTextCanvas(content, format, options) ?? renderBrowserTextCanvas(runs, options)) : null;
     // The field's own size, not its bitmap's: `TextController` floors `TextField.width` and `height` into the window.
     const size = rendered ? { width: rendered.fieldWidth ?? rendered.width, height: rendered.fieldHeight ?? rendered.height, textWidth: rendered.textWidth, textHeight: rendered.textHeight } : undefined;
 

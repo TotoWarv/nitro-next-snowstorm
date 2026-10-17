@@ -32,6 +32,7 @@ export class RoomEventHandler implements IRoomEventHandler {
     private _eventsBeforeHandler: RoomObjectEvent[] | undefined = [];
     private _roomCanvasMouseHandler: ((event: RoomSpriteMouseEvent, object: IRoomObject) => void) | undefined = undefined;
     private _gameUserClickEventId: number = -1;
+    private _gameHoveredUserId: number | null = null;
 
     constructor(private _room: IRoom) { }
 
@@ -103,10 +104,14 @@ export class RoomEventHandler implements IRoomEventHandler {
 
         switch (this._room.getRoomObjectCategoryForType(object.type)) {
             case RoomObjectCategoryEnum.Unit:
-                if (!isClick) return;
+                if (isClick) {
+                    this._gameUserClickEventId = event.eventId;
+                    this._room.gameInputHandler?.onUserClick(object.id, { shift: event.shiftKey, alt: event.altKey });
 
-                this._gameUserClickEventId = event.eventId;
-                this._room.gameInputHandler?.onUserClick(object.id);
+                    return;
+                }
+
+                this.handleGameUserHover(event, object.id);
                 return;
             case RoomObjectCategoryEnum.Room:
                 if (isClick && (event.eventId === this._gameUserClickEventId)) return;
@@ -116,6 +121,22 @@ export class RoomEventHandler implements IRoomEventHandler {
         }
     }
 
+    private handleGameUserHover(event: RoomSpriteMouseEvent, objectId: number): void {
+        if (event.type === MouseEventType.ROLL_OVER) {
+            if (this._gameHoveredUserId === objectId) return;
+
+            this._gameHoveredUserId = objectId;
+            this._room.gameInputHandler?.onUserHover(objectId);
+
+            return;
+        }
+
+        if ((event.type !== MouseEventType.ROLL_OUT) || (this._gameHoveredUserId !== objectId)) return;
+
+        this._gameHoveredUserId = null;
+        this._room.gameInputHandler?.onUserHover(null);
+    }
+
     private handleGameTileMouseEvent(event: RoomObjectMouseEvent): void {
         const handler = this._room.gameInputHandler;
 
@@ -123,7 +144,7 @@ export class RoomEventHandler implements IRoomEventHandler {
 
         switch (event.type) {
             case RoomObjectMouseEvent.CLICK:
-                handler.onTileClick(event.tileXAsInt, event.tileYAsInt);
+                handler.onTileClick(event.tileXAsInt, event.tileYAsInt, { shift: event.shiftKey, alt: event.altKey });
                 return;
             case RoomObjectMouseEvent.MOUSE_MOVE:
                 handler.onMouseMove(event.tileXAsInt, event.tileYAsInt);

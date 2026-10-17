@@ -44,7 +44,7 @@ const { RoomObjectVariableEnum } = load('nitro-api/src/room/object/RoomObjectVar
 const { RoomObjectLogicType } = load('nitro-api/src/room/object/RoomObjectLogicType');
 const { RoomObjectVisualizationType } = load('nitro-api/src/room/object/RoomObjectVisualizationType');
 
-const MouseEventType = { MOUSE_CLICK: 'click', MOUSE_MOVE: 'mousemove', ROLL_OVER: 'rollOver', MOUSE_DOWN: 'mousedown' };
+const MouseEventType = { MOUSE_CLICK: 'click', MOUSE_MOVE: 'mousemove', ROLL_OVER: 'mouseover', ROLL_OUT: 'mouseout', MOUSE_DOWN: 'mousedown' };
 
 class RoomObjectEvent {
     constructor(type, objectId = 0, objectType = '') {
@@ -66,10 +66,12 @@ class RoomObjectMouseEvent extends RoomObjectEvent {
 }
 
 class RoomObjectTileMouseEvent extends RoomObjectMouseEvent {
-    constructor(type, eventId, tileX, tileY) {
+    constructor(type, eventId, tileX, tileY, altKey = false, shiftKey = false) {
         super(type, eventId);
         this.tileX = tileX;
         this.tileY = tileY;
+        this.altKey = altKey;
+        this.shiftKey = shiftKey;
     }
 
     get tileXAsInt() {
@@ -98,9 +100,10 @@ const recordingGameHandler = () => {
 
     return {
         calls,
-        onTileClick: (x, y) => calls.push([ 'tile', x, y ]),
-        onUserClick: objectId => calls.push([ 'user', objectId ]),
+        onTileClick: (x, y, modifiers) => calls.push([ 'tile', x, y, { ...modifiers } ]),
+        onUserClick: (objectId, modifiers) => calls.push([ 'user', objectId, { ...modifiers } ]),
         onMouseMove: (x, y) => calls.push([ 'move', x, y ]),
+        onUserHover: objectId => calls.push([ 'hover', objectId ]),
     };
 };
 
@@ -124,7 +127,7 @@ const setup = ({ gameMode, withHandler = true }) => {
             mouseEvent: (event) => {
                 const type = (event.type === MouseEventType.MOUSE_CLICK) ? RoomObjectMouseEvent.CLICK : RoomObjectMouseEvent.MOUSE_MOVE;
 
-                handler.handleRoomObjectEvent(new RoomObjectTileMouseEvent(type, event.eventId, tileX, tileY));
+                handler.handleRoomObjectEvent(new RoomObjectTileMouseEvent(type, event.eventId, tileX, tileY, event.altKey, event.shiftKey));
             },
         },
     });
@@ -139,14 +142,16 @@ const setup = ({ gameMode, withHandler = true }) => {
     return { game, ui, room, handler, floorObject };
 };
 
-const canvasEvent = (type, eventId) => ({ type, eventId });
+const canvasEvent = (type, eventId, { altKey = false, shiftKey = false } = {}) => ({ type, eventId, altKey, shiftKey });
+
+const NO_MODIFIERS = { shift: false, alt: false };
 
 await test('in game mode a tile click calls onTileClick and the UI (the walk composer) never sees it', () => {
     const { game, ui, handler, floorObject } = setup({ gameMode: true });
 
     handler.handleRoomCanvasMouseEvent(canvasEvent(MouseEventType.MOUSE_CLICK, 7), floorObject(3.2, 4.6));
 
-    assert.deepEqual(game.calls, [ [ 'tile', 3, 5 ] ]);
+    assert.deepEqual(game.calls, [ [ 'tile', 3, 5, NO_MODIFIERS ] ]);
     assert.deepEqual(ui.canvas, [], 'the UI canvas handler is bypassed');
     assert.deepEqual(ui.objectEvents, [], 'no tile event reaches the UI, so no walk is sent');
 });
@@ -166,13 +171,59 @@ await test('in game mode a click on a user calls onUserClick and the floor behin
     handler.handleRoomCanvasMouseEvent(canvasEvent(MouseEventType.MOUSE_CLICK, 9), { id: 12, type: 'user' });
     handler.handleRoomCanvasMouseEvent(canvasEvent(MouseEventType.MOUSE_CLICK, 9), floorObject(2, 2));
 
-    assert.deepEqual(game.calls, [ [ 'user', 12 ] ]);
+    assert.deepEqual(game.calls, [ [ 'user', 12, NO_MODIFIERS ] ]);
     assert.deepEqual(ui.canvas, []);
     assert.deepEqual(ui.objectEvents, []);
 
     handler.handleRoomCanvasMouseEvent(canvasEvent(MouseEventType.MOUSE_CLICK, 10), floorObject(2, 2));
 
-    assert.deepEqual(game.calls.at(-1), [ 'tile', 2, 2 ], 'the next click on the floor is a tile click again');
+    assert.deepEqual(game.calls.at(-1), [ 'tile', 2, 2, NO_MODIFIERS ], 'the next click on the floor is a tile click again');
+});
+
+await test('in game mode Shift and Alt reach the handler on a tile click and on a player click', () => {
+    const { game, handler, floorObject } = setup({ gameMode: true });
+
+    handler.handleRoomCanvasMouseEvent(canvasEvent(MouseEventType.MOUSE_CLICK, 20, { shiftKey: true }), floorObject(1, 1));
+    handler.handleRoomCanvasMouseEvent(canvasEvent(MouseEventType.MOUSE_CLICK, 21, { altKey: true }), floorObject(2, 1));
+    handler.handleRoomCanvasMouseEvent(canvasEvent(MouseEventType.MOUSE_CLICK, 22, { altKey: true, shiftKey: true }), floorObject(3, 1));
+    handler.handleRoomCanvasMouseEvent(canvasEvent(MouseEventType.MOUSE_CLICK, 23, { shiftKey: true }), { id: 7, type: 'user' });
+    handler.handleRoomCanvasMouseEvent(canvasEvent(MouseEventType.MOUSE_CLICK, 24, { altKey: true }), { id: 8, type: 'user' });
+    handler.handleRoomCanvasMouseEvent(canvasEvent(MouseEventType.MOUSE_CLICK, 25, { altKey: true, shiftKey: true }), { id: 9, type: 'user' });
+
+    assert.deepEqual(game.calls, [
+        [ 'tile', 1, 1, { shift: true, alt: false } ],
+        [ 'tile', 2, 1, { shift: false, alt: true } ],
+        [ 'tile', 3, 1, { shift: true, alt: true } ],
+        [ 'user', 7, { shift: true, alt: false } ],
+        [ 'user', 8, { shift: false, alt: true } ],
+        [ 'user', 9, { shift: true, alt: true } ],
+    ]);
+});
+
+await test('in game mode entering a player reports it and leaving it reports null', () => {
+    const { game, ui, handler } = setup({ gameMode: true });
+    const first = { id: 4, type: 'user' };
+    const second = { id: 6, type: 'user' };
+
+    handler.handleRoomCanvasMouseEvent(canvasEvent(MouseEventType.ROLL_OVER, 30), first);
+    handler.handleRoomCanvasMouseEvent(canvasEvent(MouseEventType.MOUSE_MOVE, 31), first);
+    handler.handleRoomCanvasMouseEvent(canvasEvent(MouseEventType.ROLL_OVER, 32), second);
+    handler.handleRoomCanvasMouseEvent(canvasEvent(MouseEventType.ROLL_OUT, 32), first);
+    handler.handleRoomCanvasMouseEvent(canvasEvent(MouseEventType.ROLL_OUT, 33), second);
+    handler.handleRoomCanvasMouseEvent(canvasEvent(MouseEventType.ROLL_OUT, 34), first);
+
+    assert.deepEqual(game.calls, [ [ 'hover', 4 ], [ 'hover', 6 ], [ 'hover', null ] ]);
+    assert.deepEqual(ui.canvas, []);
+});
+
+await test('outside game mode hovering a player never reaches the game handler', () => {
+    const { game, ui, handler } = setup({ gameMode: false });
+
+    handler.handleRoomCanvasMouseEvent(canvasEvent(MouseEventType.ROLL_OVER, 40), { id: 4, type: 'user' });
+    handler.handleRoomCanvasMouseEvent(canvasEvent(MouseEventType.ROLL_OUT, 41), { id: 4, type: 'user' });
+
+    assert.deepEqual(ui.canvas, [ [ MouseEventType.ROLL_OVER, 'user' ], [ MouseEventType.ROLL_OUT, 'user' ] ]);
+    assert.deepEqual(game.calls, []);
 });
 
 await test('in game mode furniture does not take the click, and nothing walks without a handler', () => {

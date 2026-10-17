@@ -1,12 +1,13 @@
 import { IIncomingPacket, IMessageDataWrapper } from '@nitrodevco/nitro-api';
 
-export type Game2StageLoadMessageType = object;
+export type Game2StageLoadMessageType = {
+    gameType: number;
+};
 
 export class Game2StageLoadMessage implements IIncomingPacket<Game2StageLoadMessageType> {
     public parse(wrapper: IMessageDataWrapper): Game2StageLoadMessageType {
-        const packet: Game2StageLoadMessageType = {
-        };
+        const gameType = wrapper.readInt();
 
-        return packet;
+        return { gameType };
     }
 }

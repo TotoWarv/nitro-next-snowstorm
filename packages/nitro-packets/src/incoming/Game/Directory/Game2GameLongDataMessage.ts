@@ -1,12 +1,13 @@
 import { IIncomingPacket, IMessageDataWrapper } from '@nitrodevco/nitro-api';
 
-export type Game2GameLongDataMessageType = object;
+import { SnowWarGameLobbyData, SnowWarGameLobbyDataParser } from '../Snowwar/Data/SnowWarGameLobbyData';
+
+export type Game2GameLongDataMessageType = {
+    lobby: SnowWarGameLobbyData;
+};
 
 export class Game2GameLongDataMessage implements IIncomingPacket<Game2GameLongDataMessageType> {
     public parse(wrapper: IMessageDataWrapper): Game2GameLongDataMessageType {
-        const packet: Game2GameLongDataMessageType = {
-        };
-
-        return packet;
+        return { lobby: SnowWarGameLobbyDataParser(wrapper) };
     }
 }

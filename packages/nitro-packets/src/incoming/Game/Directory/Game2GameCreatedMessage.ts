@@ -1,12 +1,13 @@
 import { IIncomingPacket, IMessageDataWrapper } from '@nitrodevco/nitro-api';
 
-export type Game2GameCreatedMessageType = object;
+import { SnowWarGameLobbyData, SnowWarGameLobbyDataParser } from '../Snowwar/Data/SnowWarGameLobbyData';
+
+export type Game2GameCreatedMessageType = {
+    lobby: SnowWarGameLobbyData;
+};
 
 export class Game2GameCreatedMessage implements IIncomingPacket<Game2GameCreatedMessageType> {
     public parse(wrapper: IMessageDataWrapper): Game2GameCreatedMessageType {
-        const packet: Game2GameCreatedMessageType = {
-        };
-
-        return packet;
+        return { lobby: SnowWarGameLobbyDataParser(wrapper) };
     }
 }

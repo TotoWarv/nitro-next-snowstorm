@@ -50,7 +50,7 @@ export interface SnowWarChatLine {
 }
 
 export interface SnowWarErrorView {
-    kind: 'joining' | 'starting' | 'enterArena' | 'notFound';
+    kind: 'joining' | 'starting' | 'enterArena' | 'notFound' | 'arena';
     reason: number;
 }
 

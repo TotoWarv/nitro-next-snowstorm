@@ -11,7 +11,7 @@ import { AuthenticationOKMessage, ClientHelloComposer, DisconnectReasonMessage, 
 import { GetTickerTime } from '@nitrodevco/nitro-renderer';
 import { ReactNode, useEffect, useRef, useState } from 'react';
 
-import { DISCONNECT_REASON_SOCKET_CLOSED, getDisconnectReasonName, showConnectionClosed, trackLoginStep } from '#base/commands';
+import { abandonSnowWarOnDisconnect, DISCONNECT_REASON_SOCKET_CLOSED, getDisconnectReasonName, showConnectionClosed, trackLoginStep } from '#base/commands';
 import { recordBugReportPacket } from '#base/context/bugreport';
 import { recordClientErrorBreadcrumb } from '#base/context/clienterrors';
 import { onboardingStore } from '#base/context/onboarding';
@@ -135,6 +135,7 @@ export const WebSocketContextProvider = ({ children }: ProviderProps) => {
         pendingServerMessages.current = [];
         setPhase('closed');
         socket?.close();
+        abandonSnowWarOnDisconnect();
         showConnectionClosed(reason, reasonName);
     };
 

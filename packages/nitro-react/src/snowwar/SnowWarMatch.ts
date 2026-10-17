@@ -31,7 +31,8 @@ export interface ISnowWarMatchObserver {
 
 const FULL_STATUS_RETRY_MS = 1000;
 const SUBTURN_MS = 50;
-const LAST_SUBTURN = SnowWarConstants.SUBTURNS_PER_TURN - 1;
+const MAX_CATCH_UP_TURNS = 10;
+const MAX_CATCH_UP_SUBTURNS = MAX_CATCH_UP_TURNS * SnowWarConstants.SUBTURNS_PER_TURN;
 const ALERT_SECONDS = 5;
 const NO_HUMAN = -1;
 const LANDED_ON_GROUND = 0;
@@ -69,7 +70,9 @@ export class SnowWarMatch implements ISnowWarEngineListener, IRoomGameInputHandl
     private arena: SnowWarArenaRoom | undefined = undefined;
     private running = false;
     private lastReceivedTurn = -1;
-    private lastStatusAt = 0;
+    private lastTickAt = 0;
+    private accumulatedMs = 0;
+    private clock: ReturnType<typeof setInterval> | undefined = undefined;
     private fullStatusRequestedAt: number | undefined = undefined;
     private durationSeconds = 0;
     private secondsLeft = 0;
@@ -111,13 +114,48 @@ export class SnowWarMatch implements ISnowWarEngineListener, IRoomGameInputHandl
         this.running = true;
         this.durationSeconds = durationSeconds;
         this.secondsLeft = durationSeconds;
-        this.lastStatusAt = Date.now();
+        this.lastTickAt = Date.now();
+        this.accumulatedMs = 0;
+        this.stopClock();
+        this.clock = setInterval(() => this.tick(), SUBTURN_MS);
         this.refresh();
     }
 
     public stop(): void {
         this.running = false;
+        this.stopClock();
         this.arena?.silence();
+    }
+
+    public tick(): void {
+        if (!this.running) return;
+
+        const now = Date.now();
+        let steps = 0;
+
+        this.accumulatedMs += now - this.lastTickAt;
+        this.lastTickAt = now;
+
+        if (this.accumulatedMs >= SUBTURN_MS) {
+            const left = this.accumulatedMs - SUBTURN_MS;
+
+            steps = 1;
+            this.accumulatedMs = (left >= SUBTURN_MS) ? 0 : left;
+        }
+
+        const behind = this.engine.pendingSubturns - steps - SnowWarConstants.SUBTURNS_PER_TURN;
+
+        steps += Math.min(MAX_CATCH_UP_SUBTURNS, Math.max(0, behind));
+
+        let stepped = 0;
+
+        while ((stepped < steps) && this.engine.stepSubturn()) stepped++;
+
+        if (!stepped) return;
+
+        if (!this.engine.inSync) this.requestFullStatus(SnowWarFullStatusReason.Diverged);
+
+        this.refresh();
     }
 
     public applyStatus(message: Game2GameStatusMessageType): void {
@@ -126,14 +164,12 @@ export class SnowWarMatch implements ISnowWarEngineListener, IRoomGameInputHandl
         const skipped = message.turn > (this.lastReceivedTurn + 1);
 
         this.lastReceivedTurn = message.turn;
-        this.lastStatusAt = Date.now();
 
-        const outcome = this.engine.applyGameStatus(message);
+        const outcome = this.engine.receiveGameStatus(message);
 
         if (skipped || (outcome === 'outOfSequence')) this.requestFullStatus(SnowWarFullStatusReason.TooLate);
-        else if (!this.engine.inSync) this.requestFullStatus(SnowWarFullStatusReason.Diverged);
 
-        this.refresh();
+        this.tick();
     }
 
     public applyFullStatus(message: Game2FullGameStatusMessageType): void {
@@ -141,7 +177,6 @@ export class SnowWarMatch implements ISnowWarEngineListener, IRoomGameInputHandl
 
         this.engine.applyFullStatus(message);
         this.lastReceivedTurn = message.turn;
-        this.lastStatusAt = Date.now();
         this.fullStatusRequestedAt = undefined;
         this.durationSeconds = message.durationSeconds;
         this.refresh();
@@ -269,6 +304,7 @@ export class SnowWarMatch implements ISnowWarEngineListener, IRoomGameInputHandl
 
     public dispose(): void {
         this.running = false;
+        this.stopClock();
         this.arena?.dispose();
         this.arena = undefined;
     }
@@ -287,10 +323,17 @@ export class SnowWarMatch implements ISnowWarEngineListener, IRoomGameInputHandl
         return this.engine.humans().filter(human => !this.exitedHumanIds.has(human.id));
     }
 
-    private stamp(): { turn: number; subturn: number } {
-        const elapsedSubturns = Math.floor((Date.now() - this.lastStatusAt) / SUBTURN_MS);
+    private stopClock(): void {
+        if (this.clock === undefined) return;
 
-        return { turn: this.lastReceivedTurn + 1, subturn: Math.min(LAST_SUBTURN, Math.max(0, elapsedSubturns)) };
+        clearInterval(this.clock);
+        this.clock = undefined;
+    }
+
+    private stamp(): { turn: number; subturn: number } {
+        this.tick();
+
+        return { turn: this.engine.simulatingTurn, subturn: this.engine.subturn };
     }
 
     private requestFullStatus(reason: SnowWarFullStatusReason): void {
@@ -339,7 +382,7 @@ export class SnowWarMatch implements ISnowWarEngineListener, IRoomGameInputHandl
     private updateSecondsLeft(): void {
         if (!this.running) return;
 
-        const simulatedSubturns = (this.engine.turn + 1) * SnowWarConstants.SUBTURNS_PER_TURN;
+        const simulatedSubturns = this.engine.simulatedSubturns;
         const secondsLeft = Math.max(0, Math.floor(((this.durationSeconds * 1000) - (simulatedSubturns * SUBTURN_MS)) / 1000));
 
         if (secondsLeft === this.secondsLeft) return;

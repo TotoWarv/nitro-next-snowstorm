@@ -1,7 +1,8 @@
+import { NitroLogger } from '@nitrodevco/nitro-api';
 import type { Game2EnterArenaMessageType, SnowWarGameLobbyData } from '@nitrodevco/nitro-packets';
-import { Game2AccountGameStatusMessage, Game2ArenaEnteredMessage, Game2EnterArenaFailedMessage, Game2EnterArenaMessage, Game2FriendsLeaderboardMessage, Game2FullGameStatusMessage, Game2GameCancelledMessage, Game2GameChatFromPlayerMessage, Game2GameCreatedMessage, Game2GameDirectoryStatusMessage, Game2GameEndingMessage, Game2GameLongDataMessage, Game2GameNotFoundMessage, Game2GameRejoinMessage, Game2GameStartedMessage, Game2GameStatusMessage, Game2InArenaQueueMessage, Game2JoiningGameFailedMessage, Game2PlayerExitedGameArenaMessage, Game2PlayerRematchesMessage, Game2StageEndingMessage, Game2StageLoadMessage, Game2StageRunningMessage, Game2StageStartingMessage, Game2StageStillLoadingMessage, Game2StartCounterMessage, Game2StartingGameFailedMessage, Game2StopCounterMessage, Game2TotalGroupLeaderboardMessage, Game2TotalLeaderboardMessage, Game2UserBlockedMessage, Game2UserJoinedGameMessage, Game2UserLeftGameMessage, Game2WeeklyFriendsLeaderboardMessage, Game2WeeklyGroupLeaderboardMessage, Game2WeeklyLeaderboardMessage, QuitComposer } from '@nitrodevco/nitro-packets';
+import { Game2AccountGameStatusMessage, Game2ArenaEnteredMessage, Game2EnterArenaFailedMessage, Game2EnterArenaMessage, Game2ExitGameComposer, Game2FriendsLeaderboardMessage, Game2FullGameStatusMessage, Game2GameCancelledMessage, Game2GameChatFromPlayerMessage, Game2GameCreatedMessage, Game2GameDirectoryStatusMessage, Game2GameEndingMessage, Game2GameLongDataMessage, Game2GameNotFoundMessage, Game2GameRejoinMessage, Game2GameStartedMessage, Game2GameStatusMessage, Game2InArenaQueueMessage, Game2JoiningGameFailedMessage, Game2PlayerExitedGameArenaMessage, Game2PlayerRematchesMessage, Game2StageEndingMessage, Game2StageLoadMessage, Game2StageRunningMessage, Game2StageStartingMessage, Game2StageStillLoadingMessage, Game2StartCounterMessage, Game2StartingGameFailedMessage, Game2StopCounterMessage, Game2TotalGroupLeaderboardMessage, Game2TotalLeaderboardMessage, Game2UserBlockedMessage, Game2UserJoinedGameMessage, Game2UserLeftGameMessage, Game2WeeklyFriendsLeaderboardMessage, Game2WeeklyGroupLeaderboardMessage, Game2WeeklyLeaderboardMessage, QuitComposer } from '@nitrodevco/nitro-packets';
 
-import { endSnowWarMatch, goToRoom, showSnowWarArena, snowWarRequestAccountStatus, snowWarStageReady } from '#base/commands';
+import { endSnowWarMatch, goToRoom, showSnowWarArena, snowWarRequestAccountStatus, snowWarStageReady, takeSnowWarReturnRoom } from '#base/commands';
 import { WebSocketConnection } from '#base/context/communication';
 import { roomStore } from '#base/context/room';
 import { SnowWarErrorView, SnowWarLobbyView, SnowWarPhase, snowWarStore } from '#base/context/snowwar';
@@ -71,6 +72,25 @@ export const registerSnowWarHandlers = ({ subscribe, send }: WebSocketConnection
         game().resetGame();
     };
 
+    const buildArena = (match: SnowWarMatch) => {
+        try {
+            match.buildArena();
+        } catch (error) {
+            NitroLogger.error('SnowWar arena could not be built, leaving the game', error);
+            send(new Game2ExitGameComposer({ exitToRoomBeforeGame: true }));
+            abandonGame();
+            failWith({ kind: 'arena', reason: 0 });
+
+            return false;
+        }
+
+        return true;
+    };
+
+    const returnRoomAfterReconnect = takeSnowWarReturnRoom();
+
+    if (returnRoomAfterReconnect > 0) goToRoom(send, returnRoomAfterReconnect);
+
     return subscribeAll(subscribe, [
         on(Game2GameDirectoryStatusMessage, (data) => {
             game().setDirectory(data.status, data.gamesPlayed, data.freeGamesLeft);
@@ -133,10 +153,7 @@ export const registerSnowWarHandlers = ({ subscribe, send }: WebSocketConnection
         on(Game2StageLoadMessage, () => {
             const match = getSnowWarMatch();
 
-            if (!match) return;
-
-            match.buildArena();
-            snowWarStageReady(send);
+            if (match && buildArena(match)) snowWarStageReady(send);
         }),
 
         on(Game2StageStillLoadingMessage, data => game().setLoading({ percentage: data.percentage, readyUserIds: data.finishedUserIds })),
@@ -144,9 +161,8 @@ export const registerSnowWarHandlers = ({ subscribe, send }: WebSocketConnection
         on(Game2StageStartingMessage, (data) => {
             const match = getSnowWarMatch();
 
-            if (!match) return;
+            if (!match || !buildArena(match)) return;
 
-            match.buildArena();
             match.startStage(data);
 
             if (match.room) showSnowWarArena(match.room);
@@ -208,6 +224,8 @@ export const registerSnowWarHandlers = ({ subscribe, send }: WebSocketConnection
             if (game().results) {
                 game().setAfterSki(!game().rematchRequested);
                 game().setAwaitingRematch(game().rematchRequested);
+            } else {
+                game().resetGame();
             }
 
             returnToRoom(data.roomId);

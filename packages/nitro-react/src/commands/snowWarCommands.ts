@@ -1,4 +1,4 @@
-import type { IRoom } from '@nitrodevco/nitro-api';
+import { IRoom, NitroLogger } from '@nitrodevco/nitro-api';
 import { Game2CheckGameDirectoryStatusComposer, Game2ExitGameComposer, Game2GameChatComposer, Game2GetAccountGameStatusComposer, Game2GetFriendsLeaderboardComposer, Game2GetTotalGroupLeaderboardComposer, Game2GetTotalLeaderboardComposer, Game2GetWeeklyFriendsLeaderboardComposer, Game2GetWeeklyGroupLeaderboardComposer, Game2GetWeeklyLeaderboardComposer, Game2LeaveGameComposer, Game2LoadStageReadyComposer, Game2PlayAgainComposer, Game2QuickJoinGameComposer } from '@nitrodevco/nitro-packets';
 
 import { WebSocketConnection } from '#base/context/communication';
@@ -21,6 +21,7 @@ const AROUND_ME = -1;
 const LEADERBOARD_DIRECTION = 0;
 const LEADERBOARD_VIEW_SIZE = 8;
 const LEADERBOARD_WINDOW_SIZE = 50;
+const RETURN_ROOM_KEY = 'nitro.snowwar.return_room';
 const CHAT_PHASES = [ SnowWarPhase.Loading, SnowWarPhase.Starting, SnowWarPhase.Running, SnowWarPhase.Ending ];
 
 export const showSnowWarArena = (room: IRoom): void => {
@@ -44,6 +45,40 @@ export const endSnowWarMatch = (): void => {
 const closeSnowWarGame = (): void => {
     endSnowWarMatch();
     snowWarStore.getState().resetGame();
+};
+
+const rememberReturnRoom = (roomId: number): void => {
+    try {
+        globalThis.sessionStorage?.setItem(RETURN_ROOM_KEY, String(roomId));
+    } catch (error) {
+        NitroLogger.warn('SnowWar could not remember the room to go back to', error);
+    }
+};
+
+export const takeSnowWarReturnRoom = (): number => {
+    try {
+        const storage = globalThis.sessionStorage;
+        const roomId = Number(storage?.getItem(RETURN_ROOM_KEY) ?? 0);
+
+        storage?.removeItem(RETURN_ROOM_KEY);
+
+        return (Number.isInteger(roomId) && (roomId > 0)) ? roomId : 0;
+    } catch (error) {
+        NitroLogger.warn('SnowWar could not read the room to go back to', error);
+
+        return 0;
+    }
+};
+
+export const abandonSnowWarOnDisconnect = (): void => {
+    const { phase, previousRoomId, setPreviousRoomId } = snowWarStore.getState();
+
+    if ((phase === SnowWarPhase.Inactive) && !getSnowWarMatch()) return;
+
+    if (previousRoomId > 0) rememberReturnRoom(previousRoomId);
+
+    setPreviousRoomId(0);
+    closeSnowWarGame();
 };
 
 export const snowWarCheckDirectory = (send: Send): void => send(new Game2CheckGameDirectoryStatusComposer({}));

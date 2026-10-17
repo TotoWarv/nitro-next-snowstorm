@@ -32,7 +32,29 @@ const recorder = () => {
     return { calls, named };
 };
 
+const clock = { now: 1000000 };
+
+class FakeDate extends Date {
+    static now() {
+        return clock.now;
+    }
+}
+
+const fakeSessionStorage = (() => {
+    const values = new Map();
+
+    return {
+        values,
+        getItem: key => (values.has(key) ? values.get(key) : null),
+        setItem: (key, value) => values.set(key, String(value)),
+        removeItem: key => values.delete(key),
+    };
+})();
+
 const world = {
+    failCreateRoom: false,
+    logged: [],
+    intervals: [],
     sent: [],
     navigations: [],
     engineCalls: [],
@@ -111,6 +133,9 @@ const fakeRoom = (roomId) => {
 const roomEngine = {
     createRoom: (roomId) => {
         world.engineCalls.push([ 'createRoom', roomId ]);
+
+        if (world.failCreateRoom) throw new Error('the arena could not be built');
+
         world.room = fakeRoom(roomId);
 
         return world.room;
@@ -131,7 +156,13 @@ const rendererStub = {
 
 const enumProxy = prefix => new Proxy({}, { get: (_target, name) => `${prefix}.${String(name)}` });
 
-const apiStub = new Proxy({ Vector3d }, {
+const NitroLogger = {
+    error: (...args) => world.logged.push([ 'error', ...args ]),
+    warn: (...args) => world.logged.push([ 'warn', ...args ]),
+    log: () => undefined,
+};
+
+const apiStub = new Proxy({ Vector3d, NitroLogger }, {
     get: (target, name) => {
         if (name in target) return target[name];
         if (typeof name !== 'string') return undefined;
@@ -247,7 +278,18 @@ function requireModule(specifier) {
 
     runInNewContext(outputText, {
         exports,
-        Date,
+        Date: FakeDate,
+        sessionStorage: fakeSessionStorage,
+        setInterval: (callback, delay) => {
+            const interval = { callback, delay, cleared: false };
+
+            world.intervals.push(interval);
+
+            return interval;
+        },
+        clearInterval: (interval) => {
+            if (interval) interval.cleared = true;
+        },
         TextDecoder,
         TextEncoder,
         setTimeout: (callback, delay) => {
@@ -347,6 +389,10 @@ const resetWorld = () => {
     world.landingVisible.length = 0;
     world.sounds.length = 0;
     world.timers.length = 0;
+    world.intervals.length = 0;
+    world.logged.length = 0;
+    world.failCreateRoom = false;
+    fakeSessionStorage.values.clear();
     world.fakeObjects.clear();
     world.room = undefined;
     world.shownRoom = undefined;
@@ -365,8 +411,17 @@ const startGame = () => {
     emit('Game2StageRunningMessage', { timeToStageEnd: 180 });
 };
 
+const drain = () => {
+    for (let guard = 0; (guard < 5000) && (getSnowWarMatch()?.engine.pendingSubturns > 0); guard++) {
+        clock.now += 50;
+        getSnowWarMatch().tick();
+    }
+};
+
 const playTurns = (from, to) => {
     for (const turn of recording.turns.slice(from, to)) emit('Game2GameStatusMessage', statusOf(turn));
+
+    drain();
 };
 
 const referenceEngineAt = (turn) => {
@@ -472,6 +527,8 @@ await test('a wrong checksum sends one full status request, however many turns f
     playTurns(0, 41);
 
     for (const turn of recording.turns.slice(41, 45)) emit('Game2GameStatusMessage', { ...statusOf(turn), checksum: turn.checksum ^ 0x5A5A });
+
+    drain();
 
     const requests = sentNamed('Game2RequestFullStatusUpdateComposer');
 
@@ -632,23 +689,17 @@ await test('a full status request waits a second before it is asked again', () =
     startGame();
     playTurns(0, 41);
 
-    const realNow = Date.now;
-    let now = realNow();
+    emit('Game2GameStatusMessage', { ...statusOf(recording.turns[41]), checksum: recording.turns[41].checksum ^ 1 });
+    drain();
+    assert.equal(sentNamed('Game2RequestFullStatusUpdateComposer').length, 1);
 
-    Date.now = () => now;
+    clock.now += 300;
+    playTurns(42, 43);
+    assert.equal(sentNamed('Game2RequestFullStatusUpdateComposer').length, 1);
 
-    try {
-        emit('Game2GameStatusMessage', { ...statusOf(recording.turns[41]), checksum: recording.turns[41].checksum ^ 1 });
-        now += 600;
-        playTurns(42, 44);
-        assert.equal(sentNamed('Game2RequestFullStatusUpdateComposer').length, 1);
-
-        now += 500;
-        playTurns(44, 45);
-        assert.equal(sentNamed('Game2RequestFullStatusUpdateComposer').length, 2);
-    } finally {
-        Date.now = realNow;
-    }
+    clock.now += 500;
+    playTurns(43, 44);
+    assert.equal(sentNamed('Game2RequestFullStatusUpdateComposer').length, 2);
 });
 
 await test('the HUD counts a departed player\'s points in his team and his avatar leaves the arena', () => {
@@ -718,7 +769,7 @@ await test('the directory, the account, a block and the leaderboards land in the
     emit('Game2GameDirectoryStatusMessage', { status: 0, blockLength: 0, gamesPlayed: 7, freeGamesLeft: -1 });
     assert.deepEqual([ state().directoryStatus, state().gamesPlayed, state().freeGamesLeft ], [ 0, 7, -1 ]);
 
-    const before = Date.now();
+    const before = clock.now;
 
     emit('Game2UserBlockedMessage', { playerBlockLength: 90 });
     assert.ok(state().blockedUntil >= before + 90000);
@@ -783,4 +834,119 @@ await test('a cancelled game frees the arena and goes back to the room the playe
     assert.deepEqual(world.navigations.filter(call => call[0] === 'goToRoom'), [ [ 'goToRoom', 123 ] ]);
     assert.equal(state().phase, SnowWarPhase.Inactive);
     assert.equal(getSnowWarMatch(), undefined);
+});
+
+await test('the match runs on a 50 ms clock: a snowball moves on every subturn, one subturn per tick', () => {
+    startGame();
+    playTurns(0, 3);
+
+    const match = getSnowWarMatch();
+    const ball = () => world.fakeObjects.get('RoomObjectCategoryEnum.Snowball:9');
+
+    assert.equal(world.intervals.filter(interval => !interval.cleared).map(interval => interval.delay).join(), '50');
+    assert.equal(match.engine.turn, 2);
+
+    emit('Game2GameStatusMessage', statusOf(recording.turns[3]));
+    assert.equal(match.engine.simulatedSubturns, 9, 'one turn behind: nothing to catch up');
+
+    const seen = [];
+
+    for (let subturn = 0; subturn < 3; subturn++) {
+        clock.now += 50;
+        world.intervals.at(-1).callback();
+        assert.equal(match.engine.simulatedSubturns, 10 + subturn);
+        seen.push(JSON.stringify(ball().locations.at(-1)));
+    }
+
+    assert.equal(ball().locations.length, 3, 'one position per subturn');
+    assert.equal(new Set(seen).size, 3);
+
+    clock.now += 10;
+    match.tick();
+    assert.equal(match.engine.simulatedSubturns, 12, 'no subturn before 50 ms have gone by');
+});
+
+await test('catching up runs at most 10 turns at once and stays one turn behind', () => {
+    startGame();
+
+    const match = getSnowWarMatch();
+
+    for (const turn of recording.turns.slice(0, 20)) match.engine.receiveGameStatus(statusOf(turn));
+
+    match.tick();
+    assert.equal(match.engine.simulatedSubturns, 30);
+
+    match.tick();
+    assert.equal(match.engine.simulatedSubturns, 57);
+    assert.equal(match.engine.pendingSubturns, 3);
+});
+
+await test('an input is stamped with the subturn the simulation reached just before it is sent', () => {
+    startGame();
+    playTurns(0, 1);
+    emit('Game2GameStatusMessage', statusOf(recording.turns[1]));
+    world.sent.length = 0;
+
+    clock.now += 100;
+    commands.snowWarMoveTo(socket.send, 4, 4);
+
+    assert.deepEqual([ sentNamed('Game2SetUserMoveTargetComposer')[0].params.turn, sentNamed('Game2SetUserMoveTargetComposer')[0].params.subturn ], [ 1, 1 ]);
+});
+
+await test('a lost connection drops the game and, once connected again, goes back to the room the player left', () => {
+    startGame();
+    playTurns(0, 3);
+
+    commands.abandonSnowWarOnDisconnect();
+
+    assert.equal(getSnowWarMatch(), undefined);
+    assert.ok(world.engineCalls.some(call => (call[0] === 'disposeRoom') && (call[1] === ARENA_ROOM_ID)));
+    assert.equal(state().phase, SnowWarPhase.Inactive);
+    assert.ok(world.intervals.every(interval => interval.cleared), 'the clock is stopped');
+
+    registerSnowWarHandlers(socket);
+
+    assert.deepEqual(world.navigations.filter(call => call[0] === 'goToRoom'), [ [ 'goToRoom', 123 ] ]);
+
+    registerSnowWarHandlers(socket);
+    assert.equal(world.navigations.filter(call => call[0] === 'goToRoom').length, 1, 'only once');
+});
+
+await test('a lost connection outside a game remembers nothing', () => {
+    resetWorld();
+    emit('Game2GameCancelledMessage', {});
+    commands.abandonSnowWarOnDisconnect();
+    registerSnowWarHandlers(socket);
+
+    assert.deepEqual(world.navigations.filter(call => call[0] === 'goToRoom'), []);
+});
+
+await test('Game2GameRejoin with no results on screen closes the game', () => {
+    startGame();
+    playTurns(0, 3);
+    emit('Game2GameRejoinMessage', { roomId: 123 });
+
+    assert.equal(state().phase, SnowWarPhase.Inactive);
+    assert.equal(getSnowWarMatch(), undefined);
+    assert.deepEqual(world.navigations.filter(call => call[0] === 'goToRoom'), [ [ 'goToRoom', 123 ] ]);
+});
+
+await test('an arena that cannot be built is logged and the player leaves the game instead of blocking it', () => {
+    resetWorld();
+    emit('Game2GameCancelledMessage', {});
+    resetWorld();
+    world.failCreateRoom = true;
+    emit('Game2GameStartedMessage', parseFixture('Game/Directory/Game2GameStartedMessage', 'Game2GameStartedMessage', 'Game2GameStartedMessageComposer'));
+    emit('Game2EnterArenaMessage', enterArena());
+    emit('Game2StageLoadMessage', { gameType: 0 });
+
+    assert.ok(world.logged.some(entry => entry[0] === 'error'));
+    assert.deepEqual(plain(sentNamed('Game2ExitGameComposer').map(packet => packet.params)), [ { exitToRoomBeforeGame: true } ]);
+    assert.equal(sentNamed('Game2LoadStageReadyComposer').length, 0);
+    assert.equal(getSnowWarMatch(), undefined);
+    assert.equal(state().phase, SnowWarPhase.Inactive);
+    assert.equal(state().error.kind, 'arena');
+
+    emit('Game2GameRejoinMessage', { roomId: 123 });
+    assert.deepEqual(world.navigations.filter(call => call[0] === 'goToRoom'), [ [ 'goToRoom', 123 ] ]);
 });

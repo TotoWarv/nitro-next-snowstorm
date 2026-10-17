@@ -1,6 +1,6 @@
 import { IMessageDataWrapper } from '@nitrodevco/nitro-api';
 
-import { readSnowWarCount, SnowWarListLimits } from './SnowWarBoundedList';
+import { readSnowWarList, SnowWarListLimits } from './SnowWarBoundedList';
 import { SnowWarGameEventData, SnowWarGameEventDataParser } from './SnowWarGameEventData';
 
 export interface GameStatusData {
@@ -12,16 +12,7 @@ export interface GameStatusData {
 export const GameStatusDataParser = (wrapper: IMessageDataWrapper): GameStatusData => {
     const turn = wrapper.readInt();
     const checksum = wrapper.readInt();
-    const subturnCount = readSnowWarCount(wrapper, SnowWarListLimits.subturns);
-    const events: SnowWarGameEventData[][] = [];
-
-    while ((events.length < subturnCount) && wrapper.bytesAvailable) {
-        const subturn = SnowWarGameEventDataParser(wrapper);
-
-        events.push(subturn.events);
-
-        if (!subturn.complete) break;
-    }
+    const events = readSnowWarList(wrapper, SnowWarListLimits.subturns, SnowWarGameEventDataParser);
 
     return { turn, checksum, events };
 };

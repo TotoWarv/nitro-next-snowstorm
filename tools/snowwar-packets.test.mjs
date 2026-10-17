@@ -197,7 +197,7 @@ const incomingCases = [
     incomingCase('Game/Snowwar/Arena/Game2StageStillLoadingMessage', 'Game2StageStillLoadingMessageComposer', { percentage: 50, finishedUserIds: [ 4, 9 ] }),
     incomingCase('Game/Snowwar/Ingame/Game2GameStatusMessage', 'Game2GameStatusMessageComposer', { turn: 9, checksum: -77, events }),
     incomingCase('Game/Snowwar/Ingame/Game2FullGameStatusMessage', 'Game2FullGameStatusMessageComposer', {
-        remainingSeconds: 170, durationSeconds: 180, objects, numberOfTeams: 2, turn: 9, checksum: -77, events,
+        unusedLeadingValue: 0, remainingSeconds: 170, durationSeconds: 180, objects, unusedValueBeforeTeams: 0, numberOfTeams: 2, turn: 9, checksum: -77, events,
     }),
     incomingCase('Game/Score/Game2TotalLeaderboardMessage', 'Game2TotalLeaderboardMessageComposer', { entries, totalListSize: 9, gameTypeId: 0 }),
     incomingCase('Game/Score/Game2FriendsLeaderboardMessage', 'Game2FriendsLeaderboardMessageComposer', { entries, totalListSize: 9, gameTypeId: 0 }),
@@ -277,91 +277,110 @@ const { Game2GameCreatedMessage } = packet('incoming/Game/Directory/Game2GameCre
 const { Game2TotalLeaderboardMessage } = packet('incoming/Game/Score/Game2TotalLeaderboardMessage');
 const { Game2EnterArenaMessage } = packet('incoming/Game/Snowwar/Arena/Game2EnterArenaMessage');
 
+const { Game2FullGameStatusMessage } = packet('incoming/Game/Snowwar/Ingame/Game2FullGameStatusMessage');
+const { Game2GameChatFromPlayerMessage } = packet('incoming/Game/Snowwar/Arena/Game2GameChatFromPlayerMessage');
+
 const tree = [ 2, 3, 1, 0, 3, 6, 0, 0, 0 ].map(int).join('');
+const malformed = /SnowWar/;
 
-await test('a negative subturn count gives a status without events', () => {
-    const { parsed } = parseHex(Game2GameStatusMessage, int(9) + int(-77) + int(-1));
+const rejects = (Message, hex) => {
+    let produced;
 
-    assert.deepEqual(plain(parsed), { turn: 9, checksum: -77, events: [] });
+    assert.throws(() => {
+        produced = new Message().parse(wrapperFor(hex));
+    });
+
+    assert.equal(produced, undefined);
+};
+
+await test('a negative subturn count rejects the status', () => {
+    assert.throws(() => new Game2GameStatusMessage().parse(wrapperFor(int(9) + int(-77) + int(-1))), malformed);
 });
 
-await test('a negative event count gives an empty subturn and the next subturns still read', () => {
-    const { parsed, wrapper } = parseHex(Game2GameStatusMessage, int(9) + int(-77) + int(2) + int(-4) + int(1) + int(11) + int(5));
-
-    assert.deepEqual(plain(parsed), { turn: 9, checksum: -77, events: [ [], [ { type: 11, fields: [ 5 ] } ] ] });
-    assert.equal(wrapper.bytesAvailable, false);
+await test('a negative event count rejects the status', () => {
+    assert.throws(() => new Game2GameStatusMessage().parse(wrapperFor(int(9) + int(-77) + int(2) + int(-4) + int(1) + int(11) + int(5))), malformed);
 });
 
-await test('a subturn or event count above its limit reads as an empty list', () => {
-    const subturns = parseHex(Game2GameStatusMessage, int(9) + int(-77) + int(0x7FFFFFFF)).parsed;
-
-    assert.deepEqual(plain(subturns.events), []);
-
-    const eventsInSubturn = parseHex(Game2GameStatusMessage, int(9) + int(-77) + int(3) + int(0x7FFFFFFF)).parsed;
-
-    assert.deepEqual(plain(eventsInSubturn.events), [ [] ]);
+await test('a subturn or event count above its limit rejects the status', () => {
+    assert.throws(() => new Game2GameStatusMessage().parse(wrapperFor(int(9) + int(-77) + int(0x7FFFFFFF))), malformed);
+    assert.throws(() => new Game2GameStatusMessage().parse(wrapperFor(int(9) + int(-77) + int(3) + int(0x7FFFFFFF))), malformed);
 });
 
-await test('the subturn read stops at the end of the data', () => {
-    const { parsed, wrapper } = parseHex(Game2GameStatusMessage, int(9) + int(-77) + int(3) + int(1) + int(7) + int(20));
+await test('an object count above its limit never yields a turn or checksum read from shifted bytes', () => {
+    const shifted = int(0) + int(170) + int(180) + int(0x7FFFFFFF) + tree + int(0) + int(2) + int(9) + int(-77) + int(0);
 
-    assert.deepEqual(plain(parsed.events), [ [ { type: 7, fields: [ 20 ] } ] ]);
-    assert.equal(wrapper.bytesAvailable, false);
+    rejects(Game2FullGameStatusMessage, shifted);
 });
 
-await test('an unknown event type stops the read instead of misreading the rest', () => {
-    const { parsed } = parseHex(Game2GameStatusMessage, int(9) + int(-77) + int(3) + int(2) + int(7) + int(20) + int(55) + int(1) + int(2) + int(0) + int(0));
-
-    assert.deepEqual(plain(parsed.events), [ [ { type: 7, fields: [ 20 ] } ] ]);
+await test('fewer subturns than announced reject the status', () => {
+    assert.throws(() => new Game2GameStatusMessage().parse(wrapperFor(int(9) + int(-77) + int(3) + int(1) + int(7) + int(20))), malformed);
 });
 
-await test('a huge object count reads no object', () => {
-    const { parsed } = parseHex(Game2StageStartingMessage, int(0) + str('snowwar') + int(5) + int(0x7FFFFFFF) + tree);
-
-    assert.deepEqual(plain(parsed.objects), []);
+await test('an unknown event type rejects the status', () => {
+    rejects(Game2GameStatusMessage, int(9) + int(-77) + int(3) + int(2) + int(7) + int(20) + int(55) + int(1) + int(2) + int(0) + int(0));
 });
 
-await test('the object read stops at the end of the data', () => {
-    const { parsed } = parseHex(Game2StageStartingMessage, int(0) + str('snowwar') + int(5) + int(4) + tree);
-
-    assert.deepEqual(plain(parsed.objects), [ objects[1] ]);
+await test('an object count above its limit rejects the stage start', () => {
+    rejects(Game2StageStartingMessage, int(0) + str('snowwar') + int(5) + int(0x7FFFFFFF) + tree);
 });
 
-await test('a negative object count gives no objects', () => {
-    const { parsed } = parseHex(Game2StageStartingMessage, int(0) + str('snowwar') + int(5) + int(-3));
-
-    assert.deepEqual(plain(parsed.objects), []);
+await test('a negative object count rejects the stage start', () => {
+    rejects(Game2StageStartingMessage, int(0) + str('snowwar') + int(5) + int(-3));
 });
 
-await test('an unknown object type stops the object read', () => {
-    const { parsed } = parseHex(Game2StageStartingMessage, int(0) + str('snowwar') + int(5) + int(3) + tree + int(42) + int(1) + int(2));
-
-    assert.deepEqual(plain(parsed.objects), [ objects[1] ]);
+await test('fewer objects than announced reject the stage start', () => {
+    assert.throws(() => new Game2StageStartingMessage().parse(wrapperFor(int(0) + str('snowwar') + int(5) + int(4) + tree)), malformed);
 });
 
-await test('a count above the list limit is rejected without reading the list', () => {
+await test('an object cut in the middle of its variables rejects the stage start', () => {
+    rejects(Game2StageStartingMessage, int(0) + str('snowwar') + int(5) + int(1) + tree.slice(0, 8 * 5));
+});
+
+await test('a human cut in the middle of a string rejects the stage start', () => {
+    const human = [ 5, 20, ...objects[0].variables ].map(int).join('') + str('Ann') + str('') + str('hd-180-1');
+
+    rejects(Game2StageStartingMessage, int(0) + str('snowwar') + int(5) + int(1) + human + '0001');
+    rejects(Game2StageStartingMessage, int(0) + str('snowwar') + int(5) + int(1) + human + '000546');
+});
+
+await test('an unknown object type rejects the stage start', () => {
+    rejects(Game2StageStartingMessage, int(0) + str('snowwar') + int(5) + int(3) + tree + int(42) + int(1) + int(2));
+});
+
+await test('an event cut in the middle of its fields rejects the status', () => {
+    rejects(Game2GameStatusMessage, int(9) + int(-77) + int(1) + int(1) + int(8) + int(30) + int(20));
+});
+
+await test('a count above the list limit is rejected, a count at the limit is read', () => {
     const count = SnowWarListLimits.players + 1;
     const ids = Array.from({ length: count }, (_, index) => int(index)).join('');
-    const { parsed } = parseHex(Game2StageStillLoadingMessage, int(50) + int(count) + ids);
 
-    assert.deepEqual(plain(parsed.finishedUserIds), []);
+    rejects(Game2StageStillLoadingMessage, int(50) + int(count) + ids);
 
-    const atLimit = parseHex(Game2StageStillLoadingMessage, int(50) + int(SnowWarListLimits.players) + ids).parsed;
+    const atLimit = parseHex(Game2StageStillLoadingMessage, int(50) + int(SnowWarListLimits.players) + ids.slice(0, 8 * SnowWarListLimits.players));
 
-    assert.equal(atLimit.finishedUserIds.length, SnowWarListLimits.players);
+    assert.equal(atLimit.parsed.finishedUserIds.length, SnowWarListLimits.players);
+    assert.equal(atLimit.wrapper.bytesAvailable, false);
 });
 
-await test('negative or huge counts in lobby, leaderboard and level lists read as empty', () => {
-    const emptyLobby = parseHex(Game2GameCreatedMessage, int(7) + str('a') + int(0) + int(8) + int(2) + int(8) + str('Ann') + int(8) + int(-1)).parsed;
+await test('negative or huge counts in lobby, leaderboard and level lists reject the packet', () => {
+    rejects(Game2GameCreatedMessage, int(7) + str('a') + int(0) + int(8) + int(2) + int(8) + str('Ann') + int(8) + int(-1));
+    rejects(Game2TotalLeaderboardMessage, int(0x7FFFFFFF) + int(9) + int(0));
+    rejects(Game2EnterArenaMessage, int(0) + int(8) + int(2) + int(-5) + int(3) + int(2) + str('000\r000') + int(0));
+    rejects(Game2EnterArenaMessage, int(0) + int(8) + int(2) + int(0) + int(3) + int(2) + str('000\r000') + int(-9));
+});
 
-    assert.deepEqual(plain(emptyLobby.lobby.players), []);
+await test('fewer leaderboard entries than announced reject the leaderboard', () => {
+    rejects(Game2TotalLeaderboardMessage, int(2) + int(4) + int(50) + int(1) + str('Ann') + str('hd') + str('F'));
+});
 
-    const emptyBoard = parseHex(Game2TotalLeaderboardMessage, int(0x7FFFFFFF) + int(9) + int(0)).parsed;
+await test('a chat line cut in the middle of its text is rejected', () => {
+    rejects(Game2GameChatFromPlayerMessage, int(4) + '000D' + Buffer.from('salut').toString('hex'));
+});
 
-    assert.deepEqual(plain(emptyBoard), { entries: [], totalListSize: 9, gameTypeId: 0 });
+await test('empty lists are read as empty', () => {
+    const { parsed, wrapper } = parseHex(Game2GameStatusMessage, int(9) + int(-77) + int(3) + int(0) + int(0) + int(0));
 
-    const emptyArena = parseHex(Game2EnterArenaMessage, int(0) + int(8) + int(2) + int(-5) + int(3) + int(2) + str('000\r000') + int(-9)).parsed;
-
-    assert.deepEqual(plain(emptyArena.players), []);
-    assert.deepEqual(plain(emptyArena.level.fuseObjects), []);
+    assert.deepEqual(plain(parsed), { turn: 9, checksum: -77, events: [ [], [], [] ] });
+    assert.equal(wrapper.bytesAvailable, false);
 });

@@ -1,5 +1,6 @@
 import { IIncomingPacket, IMessageDataWrapper } from '@nitrodevco/nitro-api';
 
+import { readSnowWarString } from '../Data/SnowWarBoundedList';
 import { SnowWarGameObjectData, SnowWarGameObjectDataParser } from '../Data/SnowWarGameObjectData';
 
 export type Game2StageStartingMessageType = {
@@ -12,7 +13,7 @@ export type Game2StageStartingMessageType = {
 export class Game2StageStartingMessage implements IIncomingPacket<Game2StageStartingMessageType> {
     public parse(wrapper: IMessageDataWrapper): Game2StageStartingMessageType {
         const gameType = wrapper.readInt();
-        const roomType = wrapper.readString();
+        const roomType = readSnowWarString(wrapper);
         const countDown = wrapper.readInt();
         const objects = SnowWarGameObjectDataParser(wrapper);
 

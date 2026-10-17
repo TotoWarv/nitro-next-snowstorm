@@ -2,7 +2,7 @@ import { IIncomingPacket, IMessageDataWrapper } from '@nitrodevco/nitro-api';
 
 import { Game2GameResultParser } from '../../../Data/Game2GameResultParser';
 import { Game2SnowWarGameStatsParser } from '../../../Data/Game2SnowWarGameStatsParser';
-import { readSnowWarList, SnowWarListLimits } from '../Data/SnowWarBoundedList';
+import { readSnowWarList, readSnowWarString, SnowWarListLimits } from '../Data/SnowWarBoundedList';
 
 export interface SnowWarPlayerStatsData {
     score: number;
@@ -58,10 +58,10 @@ const SnowWarPlayerStatsDataParser = (wrapper: IMessageDataWrapper): SnowWarPlay
 };
 
 const SnowWarTeamPlayerDataParser = (wrapper: IMessageDataWrapper): SnowWarTeamPlayerData => {
-    const userName = wrapper.readString();
+    const userName = readSnowWarString(wrapper);
     const userId = wrapper.readInt();
-    const figure = wrapper.readString();
-    const gender = wrapper.readString();
+    const figure = readSnowWarString(wrapper);
+    const gender = readSnowWarString(wrapper);
     const score = wrapper.readInt();
     const stats = SnowWarPlayerStatsDataParser(wrapper);
 

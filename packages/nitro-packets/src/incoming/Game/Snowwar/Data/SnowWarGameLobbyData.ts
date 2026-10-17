@@ -1,7 +1,7 @@
 import { IMessageDataWrapper } from '@nitrodevco/nitro-api';
 
 import { GameLobbyPlayerDataParser, IGameLobbyPlayerData } from '../../../Data/GameLobbyPlayerDataParser';
-import { readSnowWarList, SnowWarListLimits } from './SnowWarBoundedList';
+import { readSnowWarList, readSnowWarString, SnowWarListLimits } from './SnowWarBoundedList';
 
 export interface SnowWarGameLobbyData {
     gameId: number;
@@ -17,12 +17,12 @@ export interface SnowWarGameLobbyData {
 
 export const SnowWarGameLobbyDataParser = (wrapper: IMessageDataWrapper): SnowWarGameLobbyData => {
     const gameId = wrapper.readInt();
-    const levelName = wrapper.readString();
+    const levelName = readSnowWarString(wrapper);
     const gameType = wrapper.readInt();
     const fieldType = wrapper.readInt();
     const numberOfTeams = wrapper.readInt();
     const maximumPlayers = wrapper.readInt();
-    const owningPlayerName = wrapper.readString();
+    const owningPlayerName = readSnowWarString(wrapper);
     const levelEntryId = wrapper.readInt();
     const players = readSnowWarList(wrapper, SnowWarListLimits.players, GameLobbyPlayerDataParser);
 

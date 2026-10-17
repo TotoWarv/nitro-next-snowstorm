@@ -1,6 +1,6 @@
 import { IMessageDataWrapper } from '@nitrodevco/nitro-api';
 
-import { readSnowWarCount, SnowWarListLimits } from './SnowWarBoundedList';
+import { readSnowWarList, SnowWarListLimits, SnowWarMalformedPacketError } from './SnowWarBoundedList';
 
 export enum SnowWarGameEventTypeEnum {
     HumanLeftGame = 1,
@@ -19,11 +19,6 @@ export interface SnowWarGameEventData {
     fields: number[];
 }
 
-export type SnowWarGameEventsRead = {
-    events: SnowWarGameEventData[];
-    complete: boolean;
-};
-
 const FIELD_COUNTS: Record<number, number> = {
     [SnowWarGameEventTypeEnum.HumanLeftGame]: 1,
     [SnowWarGameEventTypeEnum.NewMoveTarget]: 3,
@@ -36,18 +31,13 @@ const FIELD_COUNTS: Record<number, number> = {
     [SnowWarGameEventTypeEnum.RayGunBurst]: 3,
 };
 
-export const SnowWarGameEventDataParser = (wrapper: IMessageDataWrapper): SnowWarGameEventsRead => {
-    const count = readSnowWarCount(wrapper, SnowWarListLimits.eventsPerSubturn);
-    const events: SnowWarGameEventData[] = [];
+const SnowWarGameEventParser = (wrapper: IMessageDataWrapper): SnowWarGameEventData => {
+    const type = wrapper.readInt();
+    const fieldCount = FIELD_COUNTS[type];
 
-    while ((events.length < count) && wrapper.bytesAvailable) {
-        const type = wrapper.readInt();
-        const fieldCount = FIELD_COUNTS[type];
+    if (fieldCount === undefined) throw new SnowWarMalformedPacketError(`unknown game event type ${type}`);
 
-        if (fieldCount === undefined) return { events, complete: false };
-
-        events.push({ type, fields: Array.from({ length: fieldCount }, () => wrapper.readInt()) });
-    }
-
-    return { events, complete: true };
+    return { type, fields: Array.from({ length: fieldCount }, () => wrapper.readInt()) };
 };
+
+export const SnowWarGameEventDataParser = (wrapper: IMessageDataWrapper): SnowWarGameEventData[] => readSnowWarList(wrapper, SnowWarListLimits.eventsPerSubturn, SnowWarGameEventParser);

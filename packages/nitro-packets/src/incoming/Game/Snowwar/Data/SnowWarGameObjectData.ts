@@ -1,6 +1,6 @@
 import { IMessageDataWrapper } from '@nitrodevco/nitro-api';
 
-import { readSnowWarCount, SnowWarListLimits } from './SnowWarBoundedList';
+import { readSnowWarList, readSnowWarString, SnowWarListLimits, SnowWarMalformedPacketError } from './SnowWarBoundedList';
 
 export enum SnowWarGameObjectTypeEnum {
     Snowball = 1,
@@ -31,22 +31,17 @@ const STRING_COUNTS: Record<number, number> = {
 
 const readTimes = <T>(count: number, read: () => T): T[] => Array.from({ length: count }, read);
 
-export const SnowWarGameObjectDataParser = (wrapper: IMessageDataWrapper): SnowWarGameObjectData[] => {
-    const count = readSnowWarCount(wrapper, SnowWarListLimits.gameObjects);
-    const objects: SnowWarGameObjectData[] = [];
+const SnowWarGameObjectParser = (wrapper: IMessageDataWrapper): SnowWarGameObjectData => {
+    const type = wrapper.readInt();
+    const variableCount = VARIABLE_COUNTS[type];
 
-    while ((objects.length < count) && wrapper.bytesAvailable) {
-        const type = wrapper.readInt();
-        const variableCount = VARIABLE_COUNTS[type];
+    if (variableCount === undefined) throw new SnowWarMalformedPacketError(`unknown game object type ${type}`);
 
-        if (variableCount === undefined) break;
+    const id = wrapper.readInt();
+    const variables = readTimes(variableCount, () => wrapper.readInt());
+    const strings = readTimes(STRING_COUNTS[type] ?? 0, () => readSnowWarString(wrapper));
 
-        const id = wrapper.readInt();
-        const variables = readTimes(variableCount, () => wrapper.readInt());
-        const strings = readTimes(STRING_COUNTS[type] ?? 0, () => wrapper.readString());
-
-        objects.push({ type, id, variables, strings });
-    }
-
-    return objects;
+    return { type, id, variables, strings };
 };
+
+export const SnowWarGameObjectDataParser = (wrapper: IMessageDataWrapper): SnowWarGameObjectData[] => readSnowWarList(wrapper, SnowWarListLimits.gameObjects, SnowWarGameObjectParser);

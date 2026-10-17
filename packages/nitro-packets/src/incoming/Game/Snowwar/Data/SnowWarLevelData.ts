@@ -1,6 +1,6 @@
 import { GetObjectDataFromWrapper, IMessageDataWrapper, IObjectData } from '@nitrodevco/nitro-api';
 
-import { readSnowWarList, SnowWarListLimits } from './SnowWarBoundedList';
+import { readSnowWarList, readSnowWarString, SnowWarListLimits } from './SnowWarBoundedList';
 
 export interface SnowWarFuseObjectData {
     name: string;
@@ -24,7 +24,7 @@ export interface SnowWarLevelData {
 }
 
 const SnowWarFuseObjectDataParser = (wrapper: IMessageDataWrapper): SnowWarFuseObjectData => {
-    const name = wrapper.readString();
+    const name = readSnowWarString(wrapper);
     const id = wrapper.readInt();
     const x = wrapper.readInt();
     const y = wrapper.readInt();
@@ -42,7 +42,7 @@ const SnowWarFuseObjectDataParser = (wrapper: IMessageDataWrapper): SnowWarFuseO
 export const SnowWarLevelDataParser = (wrapper: IMessageDataWrapper): SnowWarLevelData => {
     const width = wrapper.readInt();
     const height = wrapper.readInt();
-    const heightMap = wrapper.readString();
+    const heightMap = readSnowWarString(wrapper);
     const fuseObjects = readSnowWarList(wrapper, SnowWarListLimits.fuseObjects, SnowWarFuseObjectDataParser);
 
     return { width, height, heightMap, fuseObjects };

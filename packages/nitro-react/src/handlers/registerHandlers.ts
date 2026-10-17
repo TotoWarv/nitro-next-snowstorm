@@ -29,6 +29,7 @@ import {
     registerRoomThumbnailCameraHandlers,
     registerRoomUserHandlers, registerRoomVariableFxHandlers, registerRoomWiredVisualizationHandlers, registerRoomYoutubeHandlers,
 } from './room';
+import { registerSnowWarHandlers } from './snowwar';
 import { bridgeSoundManager, registerSoundManagerHandlers } from './sound';
 import { registerSpecialItemsHandlers } from './special-items';
 import { registerBugReportHandlers, registerFurnitureDataHandlers, registerHotelViewHandlers, registerLatencyHandlers, registerTrackingHandlers } from './system';
@@ -141,6 +142,7 @@ export const registerHandlers = (socket: WebSocketConnection) => {
         // The cursed dragon adoption's claim (`CursedDragonAdoptionController`).
         registerCursedDragonAdoptionHandlers(socket),
         registerGameTokensHandlers(socket),
+        registerSnowWarHandlers(socket),
         registerOfferCenterHandlers(socket),
         bridgeOfferCenter(),
         // The targeted offers (`OfferController`): asked for once the user object is in.

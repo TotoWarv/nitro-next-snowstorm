@@ -18,6 +18,7 @@ export * from './offer-center';
 export * from './quests';
 export * from './reward-track';
 export * from './room';
+export * from './snowWarCommands';
 export * from './sound';
 export * from './special-items';
 export * from './system';

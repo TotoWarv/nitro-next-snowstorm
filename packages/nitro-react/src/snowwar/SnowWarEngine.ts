@@ -1,5 +1,6 @@
 import type { Game2FullGameStatusMessageType, Game2GameStatusMessageType, Game2StageStartingMessageType, SnowWarGameEventData, SnowWarGameObjectData, SnowWarLevelData } from '@nitrodevco/nitro-packets';
 
+import type { ISnowWarDecorState } from './ISnowWarDecorState';
 import type { ISnowWarEngineListener } from './ISnowWarEngineListener';
 import type { ISnowWarHuman } from './ISnowWarHuman';
 import type { ISnowWarSnowball } from './ISnowWarSnowball';
@@ -61,6 +62,10 @@ export class SnowWarEngine {
 
     public tile(x: number, y: number): ISnowWarTile | null {
         return this.world.grid.get(x, y);
+    }
+
+    public decorStates(): ISnowWarDecorState[] {
+        return this.world.decorStates();
     }
 
     public snapshot(): SnowWarGameObjectData[] {

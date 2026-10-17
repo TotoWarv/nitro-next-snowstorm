@@ -137,6 +137,13 @@ export class RoomEventHandler implements IRoomEventHandler {
         this._room.gameInputHandler?.onUserHover(null);
     }
 
+    public clearGameHover(objectId?: number): void {
+        if ((this._gameHoveredUserId === null) || ((objectId !== undefined) && (objectId !== this._gameHoveredUserId))) return;
+
+        this._gameHoveredUserId = null;
+        this._room.gameInputHandler?.onUserHover(null);
+    }
+
     private handleGameTileMouseEvent(event: RoomObjectMouseEvent): void {
         const handler = this._room.gameInputHandler;
 

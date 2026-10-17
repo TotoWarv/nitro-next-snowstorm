@@ -22,6 +22,7 @@ export * from './quests';
 export * from './registerHandlers';
 export * from './reward-track';
 export * from './room';
+export * from './snowwar';
 export * from './sound';
 export * from './special-items';
 export * from './system';

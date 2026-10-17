@@ -203,6 +203,7 @@ export interface IRoom {
     setMoveBlocked(flag: boolean): void;
     setGameMode(flag: boolean): void;
     setGameInputHandler(handler: IRoomGameInputHandler | undefined): void;
+    clearGameHover(): void;
     getGeometry(): IRoomGeometry | undefined;
     getRoomObjectRoom(): IRoomObjectController | undefined;
     getRoomObjectCursor(): IRoomObjectController | undefined;

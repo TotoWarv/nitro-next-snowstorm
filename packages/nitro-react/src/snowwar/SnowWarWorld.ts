@@ -1,5 +1,6 @@
 import type { SnowWarGameObjectData, SnowWarLevelData } from '@nitrodevco/nitro-packets';
 
+import type { ISnowWarDecorState } from './ISnowWarDecorState';
 import { SnowWarChecksumBuilder } from './SnowWarChecksum';
 import { SnowWarConstants, SnowWarObjectType } from './SnowWarConstants';
 import type { SnowWarGameObject } from './SnowWarGameObject';
@@ -128,6 +129,14 @@ export class SnowWarWorld {
         }
 
         this.objects = this.objects.filter(object => object.isActive);
+    }
+
+    public decorStates(): ISnowWarDecorState[] {
+        return [
+            ...this.activeOfType(SnowWarTree).map(tree => ({ fuseId: tree.fuseId, state: tree.hits })),
+            ...this.activeOfType(SnowWarPile).map(pile => ({ fuseId: pile.fuseId, state: pile.max - pile.remaining })),
+            ...this.activeOfType(SnowWarMachine).map(machine => ({ fuseId: machine.fuseId, state: machine.stock })),
+        ];
     }
 
     public snapshot(): SnowWarGameObjectData[] {

@@ -3,7 +3,7 @@ import { AlphaTolerance, IObjectVisualizationData, IRoomGeometry } from '@nitrod
 import { RoomObjectSpriteVisualization } from '../RoomObjectSpriteVisualization';
 import { SnowWarGameAssets } from './SnowWarGameAssets';
 
-const FRAME_DURATION_MS = 60;
+const FRAME_DURATION_MS = SnowWarGameAssets.SPLASH_DURATION_MS / SnowWarGameAssets.SPLASH_FRAME_COUNT;
 
 export class SnowSplashVisualization extends RoomObjectSpriteVisualization {
     private _startTime: number = NaN;
@@ -23,9 +23,10 @@ export class SnowSplashVisualization extends RoomObjectSpriteVisualization {
 
         if (isNaN(this._startTime)) this._startTime = time;
 
-        const frame = Math.max(0, Math.trunc((time - this._startTime) / FRAME_DURATION_MS));
+        const frame = Math.min(SnowWarGameAssets.SPLASH_FRAME_COUNT, Math.max(0, Math.trunc((time - this._startTime) / FRAME_DURATION_MS)));
+        const finished = (frame === SnowWarGameAssets.SPLASH_FRAME_COUNT);
 
-        if ((frame === this._frame) && (geometry.updateId === this._geometryUpdateId)) return;
+        if ((frame === this._frame) && (finished || (geometry.updateId === this._geometryUpdateId))) return;
 
         this._frame = frame;
         this._geometryUpdateId = geometry.updateId;
@@ -34,7 +35,7 @@ export class SnowSplashVisualization extends RoomObjectSpriteVisualization {
 
         if (!sprite) return;
 
-        sprite.visible = (frame < SnowWarGameAssets.SPLASH_FRAME_COUNT);
+        sprite.visible = !finished;
 
         if (sprite.visible) {
             sprite.texture = SnowWarGameAssets.getSplashFrame(geometry.scale, frame);

@@ -8,7 +8,8 @@ const SPLASH_PARTICLE_COUNT = 8;
 const SPLASH_REACH = 3;
 
 export class SnowWarGameAssets {
-    public static readonly SPLASH_FRAME_COUNT = 5;
+    public static readonly SPLASH_FRAME_COUNT = 3;
+    public static readonly SPLASH_DURATION_MS = 50;
 
     private static _textures: Map<string, Texture> = new Map();
 
@@ -32,7 +33,7 @@ export class SnowWarGameAssets {
             const height = radius + 2;
 
             return SnowWarGameAssets.box(width, height)
-                .ellipse(width / 2, height / 2, radius, radius / 2).fill({ color: 0x000000, alpha: 0.28 });
+                .ellipse(width / 2, height / 2, radius, radius / 2).fill(0x000000);
         });
     }
 

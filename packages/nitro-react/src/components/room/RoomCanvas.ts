@@ -192,7 +192,7 @@ export const RoomCanvas = () => {
         const height = Math.floor(GetRenderer().screen.height);
 
         if (!canvas) {
-            canvas = room.getRoomCanvas(width, height, RoomGeometryScaleType.ZoomedIn);
+            canvas = room.getRoomCanvas(width, height, room.gameMode ? RoomGeometryScaleType.ZoomedOut : RoomGeometryScaleType.ZoomedIn);
 
             if (canvas.master) GetRoomStage().addChild(canvas.master);
         } else {
@@ -425,7 +425,12 @@ export const RoomCanvas = () => {
             );
         };
 
+        const handlePointerLeave = () => {
+            if (room.gameMode) room.clearGameHover();
+        };
+
         container.on('click', handlePointerEvent);
+        container.on('pointerleave', handlePointerLeave);
         container.on('tap', handlePointerEvent);
         container.on('pointermove', handlePointerEvent);
         container.on('pointerdown', handlePointerEvent);
@@ -444,6 +449,7 @@ export const RoomCanvas = () => {
             GetTicker().remove(tick);
 
             container.off('click', handlePointerEvent);
+            container.off('pointerleave', handlePointerLeave);
             container.off('tap', handlePointerEvent);
             container.off('pointermove', handlePointerEvent);
             container.off('pointerdown', handlePointerEvent);

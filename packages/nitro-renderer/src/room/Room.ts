@@ -129,7 +129,7 @@ export class Room implements IRoom {
     private _roomId: number;
     private _disposed: boolean = false;
     private _eventDispatcher: IEventDispatcher;
-    private _eventHandler: IRoomEventHandler;
+    private _eventHandler: RoomEventHandler;
     private _model: IRoomObjectModel = new RoomObjectModel();
     private _objects: Map<number, IRoomObject> = new Map();
     private _objectManagers: Map<RoomObjectCategoryEnum, IRoomObjectManager> = new Map();
@@ -674,6 +674,8 @@ export class Room implements IRoom {
 
         if (!roomObject) return;
 
+        if (category === RoomObjectCategoryEnum.Unit) this._eventHandler.clearGameHover(objectId);
+
         roomObject.tearDown();
 
         this._objects.delete(roomObject.instanceId);
@@ -965,6 +967,8 @@ export class Room implements IRoom {
     }
 
     public setGameMode(flag: boolean): void {
+        if (!flag) this._eventHandler.clearGameHover();
+
         this._gameMode = flag;
 
         this.applyGameModeToRoomObject();
@@ -980,6 +984,10 @@ export class Room implements IRoom {
 
     public setGameInputHandler(handler: IRoomGameInputHandler | undefined): void {
         this._gameInputHandler = handler;
+    }
+
+    public clearGameHover(): void {
+        this._eventHandler.clearGameHover();
     }
 
     public get gameInputHandler(): IRoomGameInputHandler | undefined {

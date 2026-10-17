@@ -268,6 +268,7 @@ await test('outside game mode a tile click goes to the UI as before and the game
 
 const roomDependencies = {
     '@nitrodevco/nitro-api': stubModule({ RoomObjectCategoryEnum, RoomObjectVariableEnum }),
+    './RoomEventHandler': { RoomEventHandler },
 };
 
 const loadRoom = (clock) => {
@@ -434,4 +435,132 @@ await test('the content loader files the game objects under their own categories
     assert.equal(isLoaderType.call(loader, 'game_snowball'), false);
     assert.equal(isLoaderType.call(loader, 'game_snowsplash'), false);
     assert.equal(isLoaderType.call(loader, 'chair'), true);
+});
+
+await test('the hovered player is forgotten when he is removed or the game mode ends, and the handler hears null', () => {
+    const { game, handler } = setup({ gameMode: true });
+
+    handler.handleRoomCanvasMouseEvent(canvasEvent(MouseEventType.ROLL_OVER, 50), { id: 4, type: 'user' });
+    handler.clearGameHover(9);
+    assert.deepEqual(game.calls, [ [ 'hover', 4 ] ], 'another player leaving changes nothing');
+
+    handler.clearGameHover(4);
+    assert.deepEqual(game.calls, [ [ 'hover', 4 ], [ 'hover', null ] ]);
+
+    handler.handleRoomCanvasMouseEvent(canvasEvent(MouseEventType.ROLL_OVER, 51), { id: 4, type: 'user' });
+    assert.deepEqual(game.calls.at(-1), [ 'hover', 4 ], 'the same player can be hovered again');
+
+    handler.clearGameHover();
+    handler.clearGameHover();
+    assert.deepEqual(game.calls.slice(-2), [ [ 'hover', 4 ], [ 'hover', null ] ], 'nothing hovered, nothing heard');
+});
+
+const fakeSprite = () => ({ alpha: 255, visible: true, offsetX: 0, offsetY: 0, relativeDepth: 0, texture: undefined, alphaTolerance: 0 });
+
+class FakeSpriteVisualization {
+    constructor() {
+        this.sprites = [];
+        this.updateSpriteCounter = 0;
+        this.object = undefined;
+    }
+
+    createSprites(count) {
+        this.sprites = Array.from({ length: count }, fakeSprite);
+    }
+
+    getSprite(index) {
+        return this.sprites[index];
+    }
+}
+
+const fakeTexture = { width: 8, height: 4 };
+const gameAssets = { SnowWarGameAssets: { SPLASH_FRAME_COUNT: 3, SPLASH_DURATION_MS: 50, getBall: () => fakeTexture, getShadow: () => fakeTexture, getSplashFrame: () => fakeTexture } };
+class FakeVector3d {
+    constructor(x, y, z) {
+        this.x = x;
+        this.y = y;
+        this.z = z;
+    }
+}
+
+const visualizationDependencies = {
+    '@nitrodevco/nitro-api': stubModule({ AlphaTolerance: { MATCH_NOTHING: 256 }, Vector3d: FakeVector3d }),
+    '../RoomObjectSpriteVisualization': { RoomObjectSpriteVisualization: FakeSpriteVisualization },
+    './SnowWarGameAssets': gameAssets,
+};
+
+await test('the snowball shadow fades with height: opacity max(0, 100 - offset / 10) on the 0-255 scale', () => {
+    const { SnowballVisualization } = load('nitro-renderer/src/room/object/visualization/game/SnowballVisualization', visualizationDependencies);
+    const shadowAt = (offset) => {
+        const visualization = new SnowballVisualization();
+        const geometry = { updateId: 1, scale: 32, getScreenPosition: location => ({ x: 0, y: (location.z === 0) ? offset : 0, z: 0 }) };
+
+        visualization.initialize({});
+        visualization.object = { updateCounter: 1, getLocation: () => ({ x: 1, y: 1, z: 2 }) };
+        visualization.update(geometry, 0, false, false);
+
+        return visualization.getSprite(1).alpha;
+    };
+
+    assert.equal(shadowAt(0), 100);
+    assert.equal(shadowAt(32), 96.8);
+    assert.equal(shadowAt(500), 50);
+    assert.equal(shadowAt(1200), 0);
+});
+
+await test('a splash shows 3 frames in about 50 ms and stops redrawing after the last one', () => {
+    const { SnowSplashVisualization } = load('nitro-renderer/src/room/object/visualization/game/SnowSplashVisualization', visualizationDependencies);
+    const visualization = new SnowSplashVisualization();
+    const geometry = { updateId: 1, scale: 32 };
+    const visibleAt = [];
+
+    visualization.initialize({});
+    visualization.object = {};
+
+    for (const time of [ 1000, 1010, 1020, 1035, 1049, 1051, 1100, 1200, 1300 ]) {
+        visualization.update(geometry, time, false, false);
+        visibleAt.push(visualization.getSprite(0).visible);
+    }
+
+    assert.deepEqual(visibleAt, [ true, true, true, true, true, false, false, false, false ]);
+
+    const counter = visualization.updateSpriteCounter;
+
+    visualization.update(geometry, 1400, false, false);
+    visualization.update(geometry, 1500, false, false);
+    assert.equal(visualization.updateSpriteCounter, counter, 'a finished splash is not redrawn');
+});
+
+await test('the room forgets the hovered player when game mode ends or when his avatar is removed', () => {
+    const Room = loadRoom(steppingClock(1));
+    const room = new Room(1);
+    const game = recordingGameHandler();
+    const { model } = modelRecorder();
+
+    room.getRoomObjectRoom = () => ({ model });
+    room.getRoomObjectCategoryForType = type => categories[type] ?? RoomObjectCategoryEnum.Minimum;
+    room.setGameMode(true);
+    room.setGameInputHandler(game);
+
+    room.getRoomObjectManager = () => ({ getObject: () => undefined });
+    room.eventHandler.handleRoomCanvasMouseEvent(canvasEvent(MouseEventType.ROLL_OVER, 60), { id: 4, type: 'user' });
+    room.removeRoomObject(4, RoomObjectCategoryEnum.Unit);
+    assert.deepEqual(game.calls, [ [ 'hover', 4 ] ], 'no avatar 4 in the room: nothing removed');
+
+    const tornDown = [];
+
+    room.getRoomObjectManager = () => ({ getObject: id => ({ instanceId: id, tearDown: () => tornDown.push(id) }), removeObject: () => {} });
+    room.dispatchEvent = () => {};
+    room.removeRoomObject(4, RoomObjectCategoryEnum.Unit);
+    assert.deepEqual(game.calls, [ [ 'hover', 4 ], [ 'hover', null ] ]);
+    assert.deepEqual(tornDown, [ 4 ]);
+
+    room.eventHandler.handleRoomCanvasMouseEvent(canvasEvent(MouseEventType.ROLL_OVER, 61), { id: 5, type: 'user' });
+    room.setGameMode(false);
+    assert.deepEqual(game.calls.slice(-2), [ [ 'hover', 5 ], [ 'hover', null ] ]);
+
+    room.setGameMode(true);
+    room.eventHandler.handleRoomCanvasMouseEvent(canvasEvent(MouseEventType.ROLL_OVER, 62), { id: 6, type: 'user' });
+    room.clearGameHover();
+    assert.deepEqual(game.calls.slice(-2), [ [ 'hover', 6 ], [ 'hover', null ] ], 'the pointer leaving the canvas forgets him too');
 });

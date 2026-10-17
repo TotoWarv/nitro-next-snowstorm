@@ -5,6 +5,8 @@ import { SnowWarGameAssets } from './SnowWarGameAssets';
 
 const BALL_SPRITE = 0;
 const SHADOW_SPRITE = 1;
+const SHADOW_MAX_ALPHA = 100;
+const SHADOW_FADE_PER_PIXEL = 10;
 
 export class SnowballVisualization extends RoomObjectSpriteVisualization {
     private _geometryUpdateId: number = -1;
@@ -43,8 +45,11 @@ export class SnowballVisualization extends RoomObjectSpriteVisualization {
 
         if (shadow) {
             shadow.texture = SnowWarGameAssets.getShadow(geometry.scale);
+            const drop = Math.round(ground.y - air.y);
+
+            shadow.alpha = Math.max(0, SHADOW_MAX_ALPHA - (drop / SHADOW_FADE_PER_PIXEL));
             shadow.offsetX = -Math.trunc(shadow.texture.width / 2);
-            shadow.offsetY = Math.round(ground.y - air.y) - Math.trunc(shadow.texture.height / 2);
+            shadow.offsetY = drop - Math.trunc(shadow.texture.height / 2);
             shadow.relativeDepth = ground.z - air.z + 0.01;
         }
 

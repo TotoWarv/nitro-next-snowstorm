@@ -23,6 +23,7 @@ export * from './IRoomContentLoader';
 export * from './IRoomEngine';
 export * from './IRoomEventHandler';
 export * from './IRoomFurnitureData';
+export * from './IRoomGameInputHandler';
 export * from './IRoomGeometry';
 export * from './IRoomInstance';
 export * from './IRoomInstanceContainer';

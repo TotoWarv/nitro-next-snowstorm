@@ -4,6 +4,7 @@ import {
     IObjectData,
     IRoom,
     IRoomEngine,
+    IRoomGameInputHandler,
     IRoomGeometry,
     IRoomObjectController,
     IVector3D,
@@ -121,6 +122,14 @@ export class RoomEngine implements IRoomEngine {
         this._rooms.set(roomId, room);
 
         return room;
+    }
+
+    public setRoomGameMode(roomId: number, flag: boolean): void {
+        this._rooms.get(roomId)?.setGameMode(flag);
+    }
+
+    public setRoomGameInputHandler(roomId: number, handler: IRoomGameInputHandler | undefined): void {
+        this._rooms.get(roomId)?.setGameInputHandler(handler);
     }
 
     /** Flash `purgeRoomContent` (and the engine's `purge`): the loader releases what nothing draws. */

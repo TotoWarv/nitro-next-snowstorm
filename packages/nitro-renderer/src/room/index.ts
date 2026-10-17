@@ -230,6 +230,7 @@ export * from './object/visualization/furniture/FurnitureWaterAreaVisualization'
 export * from './object/visualization/furniture/FurnitureYoutubeVisualization';
 export * from './object/visualization/furniture/IsometricImageFurniVisualization';
 export * from './object/visualization/furniture/ShoreMaskCreatorUtility';
+export * from './object/visualization/game';
 export * from './object/visualization/pet/AnimatedPetVisualization';
 export * from './object/visualization/pet/AnimatedPetVisualizationData';
 export * from './object/visualization/pet/ExperienceData';

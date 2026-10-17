@@ -172,6 +172,7 @@ export enum RoomObjectVariableEnum {
     RoomFloorVisibility = 'room_floor_visibility',
     RoomWallVisibility = 'room_wall_visibility',
     RoomLandscapeVisibility = 'room_landscape_visibility',
+    RoomPlanesHidden = 'room_planes_hidden',
     RoomDoorX = 'room_door_x',
     RoomDoorY = 'room_door_y',
     RoomDoorZ = 'room_door_z',

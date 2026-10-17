@@ -4,6 +4,7 @@ import { IVector3D } from '../utils';
 import { RoomGeometryScaleType } from './enum';
 import { IGetImageListener } from './IGetImageListener';
 import { IRoom } from './IRoom';
+import { IRoomGameInputHandler } from './IRoomGameInputHandler';
 import { IObjectData } from './object';
 
 export interface IRoomEngine {
@@ -15,6 +16,8 @@ export interface IRoomEngine {
     stop(): void;
     update(time: number): void;
     createRoom(roomId: number): IRoom;
+    setRoomGameMode(roomId: number, flag: boolean): void;
+    setRoomGameInputHandler(roomId: number, handler: IRoomGameInputHandler | undefined): void;
     getFurnitureFloorIconUrl(typeId: number): string | undefined;
     getFurnitureWallIconUrl(typeId: number, extra?: string): string | undefined;
     /**

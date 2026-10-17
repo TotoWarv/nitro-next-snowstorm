@@ -15,6 +15,7 @@ import {
     IRoomAreaSelectionManager,
     IRoomEventHandler,
     IRoomFurnitureData,
+    IRoomGameInputHandler,
     IRoomGeometry,
     IRoomMapData,
     IRoomObject,
@@ -157,6 +158,8 @@ export class Room implements IRoom {
     private _objectHighLighter: IRoomObjectHighLighter;
     private _isInitialized: boolean = false;
     private _isMoveBlocked: boolean = false;
+    private _gameMode: boolean = false;
+    private _gameInputHandler: IRoomGameInputHandler | undefined = undefined;
 
     /** Flash `RoomEngine._clickThroughUsers` and its furni twin: the keys that currently ask for each. */
     private _clickThroughUsers: Set<string> = new Set();
@@ -319,6 +322,8 @@ export class Room implements IRoom {
         )) as IRoomObjectController;
 
         if (!roomObject || !(roomObject.logic instanceof RoomLogic)) return;
+
+        if (this._gameMode) this.applyGameModeToRoomObject();
 
         this.setRoomValue(RoomObjectVariableEnum.RoomIsPublic, 0);
         this.setRoomValue(RoomObjectVariableEnum.RoomZScale, 1);
@@ -779,6 +784,8 @@ export class Room implements IRoom {
 
         this.dispatchEvent(new RoomEngineObjectEvent(RoomEngineObjectEvent.CONTENT_UPDATED, this._roomId, objectId, category));
 
+        if ((category === RoomObjectCategoryEnum.Snowball) || (category === RoomObjectCategoryEnum.SnowSplash)) return;
+
         // Only an object that is ready goes in, so one made before it has a location does not.
         this._tileObjectMap?.addRoomObject(object);
     }
@@ -957,6 +964,28 @@ export class Room implements IRoom {
         return this._isMoveBlocked;
     }
 
+    public setGameMode(flag: boolean): void {
+        this._gameMode = flag;
+
+        this.applyGameModeToRoomObject();
+    }
+
+    private applyGameModeToRoomObject(): void {
+        this.getRoomObjectRoom()?.model.setValue(RoomObjectVariableEnum.RoomPlanesHidden, this._gameMode ? 1 : 0);
+    }
+
+    public get gameMode(): boolean {
+        return this._gameMode;
+    }
+
+    public setGameInputHandler(handler: IRoomGameInputHandler | undefined): void {
+        this._gameInputHandler = handler;
+    }
+
+    public get gameInputHandler(): IRoomGameInputHandler | undefined {
+        return this._gameInputHandler;
+    }
+
     /** Flash `RoomEngine.isRoomVariableActive`: a room value that is set and above zero. */
     public isRoomVariableActive(key: RoomObjectVariableEnum): boolean {
         return this.getRoomValue<number>(key) > 0;
@@ -1130,13 +1159,12 @@ export class Room implements IRoom {
     /**
      * This room's part of Flash `RoomEngine.createRoomFurniture`: its queued floor items, then its
      * wall items, built one at a time; every fourth, the frame's budget (measured from `startTime`)
-     * is checked and the rest waits for the next frame. Flash skips the check in game mode, which
-     * only SnowWar sets and the port does not have.
+     * is checked and the rest waits for the next frame. Flash skips the check in game mode.
      */
     public createPendingFurniture(startTime: number, budgetMs: number): boolean {
         let built = 0;
 
-        const outOfTime = () => ((++built % 4) === 0) && ((performance.now() - startTime) >= budgetMs);
+        const outOfTime = () => ((++built % 4) === 0) && !this._gameMode && ((performance.now() - startTime) >= budgetMs);
 
         for (const [ objectId, data ] of this._floorStack) {
             this._floorStack.delete(objectId);

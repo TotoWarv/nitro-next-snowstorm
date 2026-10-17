@@ -333,9 +333,10 @@ export class RoomObjectLogicFactory implements IRoomObjectLogicFactory {
             case RoomObjectLogicType.FURNITURE_VIMEO:
                 logic = FurnitureVimeoLogic;
                 break;
-            // Flash builds two more types that deliberately land here on the basic logic: the
-            // snowwar `game_snowball` / `game_snowsplash`, which need the game engine. Run
-            // `scripts/drift/factories.py` after a revision bump to see whether that list grew.
+            case RoomObjectLogicType.GAME_SNOWBALL:
+            case RoomObjectLogicType.GAME_SNOWSPLASH:
+                logic = ObjectLogicBase;
+                break;
             default:
                 logic = FurnitureLogic;
                 break;

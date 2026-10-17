@@ -69,6 +69,7 @@ export class RoomVisualization extends RoomObjectSpriteVisualization implements 
     private _assetUpdateCounter: number = 0;
     private _maskData: RoomMapMaskData | undefined = undefined;
     private _isPlaneSet: boolean = false;
+    private _planesHidden: boolean = false;
 
     private _highlightAreaX: number = 0;
     private _highlightAreaY: number = 0;
@@ -151,6 +152,8 @@ export class RoomVisualization extends RoomObjectSpriteVisualization implements 
         if (this.updatePlaneTexturesAndVisibilities(objectModel)) needsUpdate = true;
 
         if (this.updatePlanes(geometry, geometryUpdate, time)) needsUpdate = true;
+
+        if (this.updatePlanesHidden(objectModel)) needsUpdate = true;
 
         if (needsUpdate) {
             let index = 0;
@@ -265,6 +268,18 @@ export class RoomVisualization extends RoomObjectSpriteVisualization implements 
         result = this.updatePlaneVisibility(floorVisibility, wallVisibility, landscapeVisibility) ? true : result;
 
         return result;
+    }
+
+    private updatePlanesHidden(model: IRoomObjectModel): boolean {
+        const hidden = (model.getValue<number>(RoomObjectVariableEnum.RoomPlanesHidden) === 1);
+
+        if (hidden === this._planesHidden) return false;
+
+        this._planesHidden = hidden;
+
+        for (const sprite of this.sprites) sprite.alpha = hidden ? 0 : 255;
+
+        return true;
     }
 
     private updateMasksAndColors(model: IRoomObjectModel): boolean {
@@ -938,6 +953,7 @@ export class RoomVisualization extends RoomObjectSpriteVisualization implements 
         sprite.offsetY = -offset.y;
         sprite.relativeDepth = relativeDepth;
         sprite.color = 0xFFFFFF;
+        sprite.alpha = this._planesHidden ? 0 : 255;
         sprite.texture = plane.getColoredTexture(plane.color) ?? Texture.EMPTY;
         sprite.name = _arg_3 + '_' + this._assetUpdateCounter;
     }

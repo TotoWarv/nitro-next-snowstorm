@@ -252,6 +252,7 @@ export * from './room/IRoomContentLoader';
 export * from './room/IRoomEngine';
 export * from './room/IRoomEventHandler';
 export * from './room/IRoomFurnitureData';
+export * from './room/IRoomGameInputHandler';
 export * from './room/IRoomGeometry';
 export * from './room/IRoomInstance';
 export * from './room/IRoomInstanceContainer';

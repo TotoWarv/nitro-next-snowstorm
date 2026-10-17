@@ -5,8 +5,9 @@ import {
     IRoomObject,
     IRoomObjectEvent,
     IRoomSpriteMouseEvent,
+    MouseEventType,
     RoomObjectCategoryEnum,
-    type RoomObjectEvent, RoomObjectFurniIconAssetEvent, RoomSpriteMouseEvent } from '@nitrodevco/nitro-api';
+    type RoomObjectEvent, RoomObjectFurniIconAssetEvent, RoomObjectMouseEvent, RoomObjectTileMouseEvent, RoomSpriteMouseEvent } from '@nitrodevco/nitro-api';
 
 import { GetFurniIconImageManager } from './FurniIconImageManager';
 import { RoomEnterEffect } from './utils';
@@ -30,6 +31,7 @@ export class RoomEventHandler implements IRoomEventHandler {
      */
     private _eventsBeforeHandler: RoomObjectEvent[] | undefined = [];
     private _roomCanvasMouseHandler: ((event: RoomSpriteMouseEvent, object: IRoomObject) => void) | undefined = undefined;
+    private _gameUserClickEventId: number = -1;
 
     constructor(private _room: IRoom) { }
 
@@ -45,6 +47,12 @@ export class RoomEventHandler implements IRoomEventHandler {
             return;
         }
 
+        if (this._room.gameMode && (event instanceof RoomObjectMouseEvent)) {
+            this.handleGameTileMouseEvent(event);
+
+            return;
+        }
+
         if (!this._roomObjectEventHandler) {
             // A room nobody takes events from (a previewer) keeps only the first few.
             if (this._eventsBeforeHandler && (this._eventsBeforeHandler.length < RoomEventHandler.MAX_EVENTS_BEFORE_HANDLER)) this._eventsBeforeHandler.push(event);
@@ -56,7 +64,15 @@ export class RoomEventHandler implements IRoomEventHandler {
     }
 
     public handleRoomCanvasMouseEvent(event: RoomSpriteMouseEvent, object: IRoomObject): void {
-        if (!event || !object || RoomEnterEffect.isRunning() || !this._roomCanvasMouseHandler) return;
+        if (!event || !object) return;
+
+        if (this._room.gameMode) {
+            this.handleGameCanvasMouseEvent(event, object);
+
+            return;
+        }
+
+        if (RoomEnterEffect.isRunning() || !this._roomCanvasMouseHandler) return;
 
         if (this.isClickThrough(object)) return;
 
@@ -80,6 +96,39 @@ export class RoomEventHandler implements IRoomEventHandler {
         }
 
         return false;
+    }
+
+    private handleGameCanvasMouseEvent(event: RoomSpriteMouseEvent, object: IRoomObject): void {
+        const isClick = (event.type === MouseEventType.MOUSE_CLICK);
+
+        switch (this._room.getRoomObjectCategoryForType(object.type)) {
+            case RoomObjectCategoryEnum.Unit:
+                if (!isClick) return;
+
+                this._gameUserClickEventId = event.eventId;
+                this._room.gameInputHandler?.onUserClick(object.id);
+                return;
+            case RoomObjectCategoryEnum.Room:
+                if (isClick && (event.eventId === this._gameUserClickEventId)) return;
+
+                object.mouseHandler?.mouseEvent(event, this._room.getGeometry());
+                return;
+        }
+    }
+
+    private handleGameTileMouseEvent(event: RoomObjectMouseEvent): void {
+        const handler = this._room.gameInputHandler;
+
+        if (!handler || !(event instanceof RoomObjectTileMouseEvent)) return;
+
+        switch (event.type) {
+            case RoomObjectMouseEvent.CLICK:
+                handler.onTileClick(event.tileXAsInt, event.tileYAsInt);
+                return;
+            case RoomObjectMouseEvent.MOUSE_MOVE:
+                handler.onMouseMove(event.tileXAsInt, event.tileYAsInt);
+                return;
+        }
     }
 
     public setRoomObjectEventHandler(handler: ((event: IRoomObjectEvent) => void) | undefined): void {

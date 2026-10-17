@@ -75,6 +75,7 @@ export * from './furniture/FurnitureWaterAreaVisualization';
 export * from './furniture/FurnitureYoutubeVisualization';
 export * from './furniture/IsometricImageFurniVisualization';
 export * from './furniture/ShoreMaskCreatorUtility';
+export * from './game';
 export * from './pet/AnimatedPetVisualization';
 export * from './pet/AnimatedPetVisualizationData';
 export * from './pet/ExperienceData';

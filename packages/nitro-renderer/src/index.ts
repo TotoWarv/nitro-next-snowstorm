@@ -295,6 +295,10 @@ export * from './room/object/visualization/furniture/FurnitureWaterAreaVisualiza
 export * from './room/object/visualization/furniture/FurnitureYoutubeVisualization';
 export * from './room/object/visualization/furniture/IsometricImageFurniVisualization';
 export * from './room/object/visualization/furniture/ShoreMaskCreatorUtility';
+export * from './room/object/visualization/game/SnowballVisualization';
+export * from './room/object/visualization/game/SnowSplashVisualization';
+export * from './room/object/visualization/game/SnowWarGameAssets';
+export * from './room/object/visualization/game/SnowWarGameVisualizationData';
 export * from './room/object/visualization/pet/AnimatedPetVisualization';
 export * from './room/object/visualization/pet/AnimatedPetVisualizationData';
 export * from './room/object/visualization/pet/ExperienceData';

@@ -173,6 +173,7 @@ export * from './visualization/furniture/FurnitureWaterAreaVisualization';
 export * from './visualization/furniture/FurnitureYoutubeVisualization';
 export * from './visualization/furniture/IsometricImageFurniVisualization';
 export * from './visualization/furniture/ShoreMaskCreatorUtility';
+export * from './visualization/game';
 export * from './visualization/pet/AnimatedPetVisualization';
 export * from './visualization/pet/AnimatedPetVisualizationData';
 export * from './visualization/pet/ExperienceData';

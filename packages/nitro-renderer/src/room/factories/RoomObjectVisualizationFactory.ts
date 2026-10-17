@@ -49,6 +49,9 @@ import { AnimatedFurnitureVisualization,
     RoomObjectSpriteVisualization,
     RoomVisualization,
     RoomVisualizationData,
+    SnowballVisualization,
+    SnowSplashVisualization,
+    SnowWarGameVisualizationData,
     TileCursorVisualization,
 } from '../object';
 
@@ -188,9 +191,12 @@ export class RoomObjectVisualizationFactory implements IRoomObjectVisualizationF
             case RoomObjectVisualizationType.FURNITURE_YOUTUBE:
                 visualization = FurnitureYoutubeVisualization;
                 break;
-            // Flash builds two more types that deliberately land here on the static furniture
-            // visualization: the snowwar `game_snowball` / `game_snowsplash`, which need the game
-            // engine. Run `scripts/drift/factories.py` after a revision bump to see whether that list grew.
+            case RoomObjectVisualizationType.GAME_SNOWBALL:
+                visualization = SnowballVisualization;
+                break;
+            case RoomObjectVisualizationType.GAME_SNOWSPLASH:
+                visualization = SnowSplashVisualization;
+                break;
             default:
                 visualization = FurnitureVisualization;
                 break;
@@ -271,6 +277,10 @@ export class RoomObjectVisualizationFactory implements IRoomObjectVisualizationF
                 break;
             case RoomObjectVisualizationType.PET_ANIMATED:
                 visualizationData = new AnimatedPetVisualizationData();
+                break;
+            case RoomObjectVisualizationType.GAME_SNOWBALL:
+            case RoomObjectVisualizationType.GAME_SNOWSPLASH:
+                visualizationData = new SnowWarGameVisualizationData();
                 break;
             default:
                 visualizationData = new FurnitureVisualizationData();

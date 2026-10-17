@@ -9,6 +9,7 @@ import {
     IRoomContentLoader,
     NitroLogger,
     RoomContentLoadedEvent, RoomObjectCategoryEnum,
+    RoomObjectLogicType,
     RoomObjectUserType,
     RoomObjectUserTypeName,
     RoomObjectUserTypeUtils } from '@nitrodevco/nitro-api';
@@ -297,6 +298,10 @@ export class RoomContentLoader implements IRoomContentLoader {
         if (type === RoomContentLoader.TILE_CURSOR || type === RoomContentLoader.SELECTION_ARROW)
             return RoomObjectCategoryEnum.Cursor;
 
+        if (type === RoomObjectLogicType.GAME_SNOWBALL) return RoomObjectCategoryEnum.Snowball;
+
+        if (type === RoomObjectLogicType.GAME_SNOWSPLASH) return RoomObjectCategoryEnum.SnowSplash;
+
         return RoomObjectCategoryEnum.Minimum;
     }
 
@@ -306,6 +311,8 @@ export class RoomContentLoader implements IRoomContentLoader {
 
     public isLoaderType(type: string): boolean {
         if (RoomObjectUserTypeUtils.getAvatarRealTypeByName(type) === RoomObjectUserType.User) return false;
+
+        if ((type === RoomObjectLogicType.GAME_SNOWBALL) || (type === RoomObjectLogicType.GAME_SNOWSPLASH)) return false;
 
         return true;
     }

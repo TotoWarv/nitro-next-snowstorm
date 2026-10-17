@@ -5,6 +5,7 @@ import { IPetCustomPart } from '../session';
 import { IVector3D } from '../utils';
 import { FurnitureUsagePolicyEnum, RoomGeometryScaleType, RoomThicknessType } from './enum';
 import { IRoomEventHandler } from './IRoomEventHandler';
+import { IRoomGameInputHandler } from './IRoomGameInputHandler';
 import { IRoomGeometry } from './IRoomGeometry';
 import { IRoomObjectManager } from './IRoomObjectManager';
 import { IRoomRenderingCanvas } from './IRoomRenderingCanvas';
@@ -200,6 +201,8 @@ export interface IRoom {
     setClickSettings(key: string, clickThroughUsers: boolean, clickThroughFurni: boolean): void;
     /** Flash `RoomEngine.setMoveBlocked`: a tile click does not walk while the area selection is dragging. */
     setMoveBlocked(flag: boolean): void;
+    setGameMode(flag: boolean): void;
+    setGameInputHandler(handler: IRoomGameInputHandler | undefined): void;
     getGeometry(): IRoomGeometry | undefined;
     getRoomObjectRoom(): IRoomObjectController | undefined;
     getRoomObjectCursor(): IRoomObjectController | undefined;
@@ -234,6 +237,8 @@ export interface IRoom {
     readonly clickThroughFurni: boolean;
     readonly isMoveBlocked: boolean;
     readonly isAreaSelectionMode: boolean;
+    readonly gameMode: boolean;
+    readonly gameInputHandler: IRoomGameInputHandler | undefined;
     readonly legacyGeometry: ILegacyWallGeometry | undefined;
     readonly isInitialized: boolean;
 }

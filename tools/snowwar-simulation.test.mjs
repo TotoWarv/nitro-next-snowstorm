@@ -335,3 +335,50 @@ await test('footprints, stacked blocks and rotated fences of the level reach the
     assert.deepEqual(tileOf(2, 15), [ 0, true ]);
     assert.equal(engine.tile(12, 7), null);
 });
+
+await test('stepping one subturn at a time gives the same 120 checksums, the same state and the same notifications as whole turns', () => {
+    const wholeListener = recordingListener();
+    const steppedListener = recordingListener();
+    const whole = startedEngine(wholeListener);
+    const stepped = startedEngine(steppedListener);
+
+    replay(whole, 120);
+
+    for (const turn of recording.turns) assert.equal(stepped.receiveGameStatus(statusOf(turn)), 'applied');
+
+    assert.equal(stepped.pendingSubturns, 360);
+
+    let steps = 0;
+
+    while (stepped.stepSubturn()) {
+        steps++;
+        assert.equal(stepped.simulatedSubturns, steps);
+        assert.equal(stepped.inSync, true, `subturn ${steps} diverged`);
+    }
+
+    assert.equal(steps, 360);
+    assert.equal(stepped.turn, 119);
+    assert.equal(stepped.pendingSubturns, 0);
+    assert.deepEqual(plain(stepped.snapshot()), plain(whole.snapshot()));
+    assert.deepEqual(steppedListener.heard, wholeListener.heard);
+});
+
+await test('a stepped turn is checked at its end: a wrong checksum takes the engine out of sync, a skipped turn is out of sequence', () => {
+    const engine = startedEngine();
+
+    for (const turn of recording.turns.slice(0, 3)) engine.receiveGameStatus(statusOf(turn));
+
+    assert.equal(engine.receiveGameStatus(statusOf(recording.turns[5])), 'outOfSequence');
+
+    const corrupted = statusOf(recording.turns[3]);
+
+    engine.receiveGameStatus({ ...corrupted, checksum: corrupted.checksum ^ 1 });
+
+    for (let step = 0; step < 11; step++) engine.stepSubturn();
+
+    assert.equal(engine.inSync, true, 'turn 3 is not finished yet');
+    assert.equal(engine.subturn, 2);
+    engine.stepSubturn();
+    assert.equal(engine.inSync, false);
+    assert.equal(engine.turn, 3);
+});

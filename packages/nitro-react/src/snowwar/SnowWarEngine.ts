@@ -5,10 +5,13 @@ import type { ISnowWarEngineListener } from './ISnowWarEngineListener';
 import type { ISnowWarHuman } from './ISnowWarHuman';
 import type { ISnowWarSnowball } from './ISnowWarSnowball';
 import type { ISnowWarTile } from './ISnowWarTile';
+import { SnowWarConstants } from './SnowWarConstants';
+import { resolveSnowWarEvents } from './SnowWarEventResolver';
 import type { SnowWarHappening } from './SnowWarHappening';
 import { SnowWarHuman } from './SnowWarHuman';
+import type { SnowWarResolvedEvent } from './SnowWarResolvedEvent';
 import { SnowWarSnowball } from './SnowWarSnowball';
-import { runSnowWarTurn } from './SnowWarTurnRunner';
+import { runSnowWarSubturn, runSnowWarTurn } from './SnowWarTurnRunner';
 import { SnowWarWorld } from './SnowWarWorld';
 
 export type SnowWarLevel = SnowWarLevelData;
@@ -22,6 +25,12 @@ interface SnowWarDivergedTurn {
     readonly events: SnowWarEventSchedule;
 }
 
+interface SnowWarSteppedTurn {
+    readonly status: Game2GameStatusMessageType;
+    readonly resolved: readonly SnowWarResolvedEvent[];
+    subturn: number;
+}
+
 const NO_EVENTS: SnowWarEventSchedule = [];
 const NO_HUMAN = -1;
 
@@ -31,6 +40,8 @@ export class SnowWarEngine {
     private pendingEvents = NO_EVENTS;
     private divergedTurn: SnowWarDivergedTurn | null = null;
     private synchronized = true;
+    private steppedTurn: SnowWarSteppedTurn | null = null;
+    private readonly receivedTurns: Game2GameStatusMessageType[] = [];
 
     constructor(
         private readonly level: SnowWarLevel,
@@ -42,6 +53,22 @@ export class SnowWarEngine {
 
     public get turn(): number {
         return this.nextTurn - 1;
+    }
+
+    public get subturn(): number {
+        return this.steppedTurn?.subturn ?? 0;
+    }
+
+    public get simulatedSubturns(): number {
+        return (this.nextTurn * SnowWarConstants.SUBTURNS_PER_TURN) + this.subturn;
+    }
+
+    public get pendingSubturns(): number {
+        return (this.receivedTurns.length * SnowWarConstants.SUBTURNS_PER_TURN) + (this.steppedTurn ? (SnowWarConstants.SUBTURNS_PER_TURN - this.steppedTurn.subturn) : 0);
+    }
+
+    public get simulatingTurn(): number {
+        return this.nextTurn;
     }
 
     public get inSync(): boolean {
@@ -105,6 +132,42 @@ export class SnowWarEngine {
         return 'applied';
     }
 
+    public receiveGameStatus(message: Game2GameStatusMessageType): SnowWarTurnOutcome {
+        const expectedTurn = this.nextTurn + (this.steppedTurn ? 1 : 0) + this.receivedTurns.length;
+
+        if (message.turn !== expectedTurn) return 'outOfSequence';
+
+        this.receivedTurns.push(message);
+
+        return 'applied';
+    }
+
+    public stepSubturn(): boolean {
+        if (!this.steppedTurn) {
+            const status = this.receivedTurns.shift();
+
+            if (!status) return false;
+
+            this.steppedTurn = { status, resolved: resolveSnowWarEvents(this.world, this.pendingEvents), subturn: 0 };
+        }
+
+        const stepped = this.steppedTurn;
+
+        runSnowWarSubturn(this.world, stepped.resolved, stepped.subturn);
+        stepped.subturn++;
+        this.announce(this.world.happenings.splice(0));
+
+        if (stepped.subturn < SnowWarConstants.SUBTURNS_PER_TURN) return true;
+
+        if (this.synchronized && (this.world.computeChecksum(stepped.status.turn) !== stepped.status.checksum)) this.synchronized = false;
+
+        this.steppedTurn = null;
+        this.nextTurn++;
+        this.pendingEvents = stepped.status.events;
+
+        return true;
+    }
+
     private adopt(world: SnowWarWorld, events: SnowWarEventSchedule): void {
         this.world = world;
         this.nextTurn++;
@@ -118,6 +181,8 @@ export class SnowWarEngine {
         this.pendingEvents = pendingEvents;
         this.divergedTurn = null;
         this.synchronized = true;
+        this.steppedTurn = null;
+        this.receivedTurns.length = 0;
     }
 
     private announce(happenings: readonly SnowWarHappening[]): void {

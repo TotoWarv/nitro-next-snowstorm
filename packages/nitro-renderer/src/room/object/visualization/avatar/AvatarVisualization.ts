@@ -457,7 +457,7 @@ export class AvatarVisualization
 
                         const assetName = `${this._avatarImage.getScale()}_${spriteData.member}_${dd}_${frameNumber}`;
                         // Flash `AvatarImage.getAsset`: through the avatar's alias collection, so an effect's aliased sprites draw
-                        const asset = this._avatarImage.getAsset(assetName);
+                        const asset = this._avatarImage.getSpriteAsset(spriteData.member, dd, frameNumber);
 
                         if (!asset || !asset.texture) continue;
 

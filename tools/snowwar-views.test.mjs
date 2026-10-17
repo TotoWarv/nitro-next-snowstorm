@@ -115,6 +115,7 @@ const viewCommands = requireModule('nitro-react/src/commands/snowWarViewCommands
 const teamRows = requireModule('nitro-react/src/views/snowwar/snowWarTeamRows');
 const board = requireModule('nitro-react/src/views/snowwar/snowWarBoardBindings');
 const chatLayout = requireModule('nitro-react/src/views/snowwar/snowWarChatLayout');
+const leaderboardTabs = requireModule('nitro-react/src/views/snowwar/snowWarLeaderboardTabs');
 
 const send = (...packets) => {
     for (const packet of packets) world.sent.push(packet);
@@ -464,4 +465,11 @@ await test('chat bubbles stay between the own stats panel and the right edge on 
     assert.equal(chatLayout.snowWarChatBubbleLeft(1, bubbleWidth, area), 191);
     assert.equal(chatLayout.snowWarChatBubbleLeft(2, bubbleWidth, area), 191);
     assert.equal(chatLayout.snowWarChatBubbleWidth({ width: 1440, minLeft: 200, edge: 10 }), chatLayout.SNOWWAR_CHAT_BUBBLE_WIDTH);
+});
+
+await test('the selected leaderboard tab is the light one with dark text, the other one is dark with white text', () => {
+    assert.deepEqual({ ...leaderboardTabs.snowWarLeaderboardTabStyle('left', true) }, { asset: display.snowWarAsset('left_blue'), color: 0x000000 });
+    assert.deepEqual({ ...leaderboardTabs.snowWarLeaderboardTabStyle('right', false) }, { asset: display.snowWarAsset('right_black'), color: 0xFFFFFF });
+    assert.deepEqual({ ...leaderboardTabs.snowWarLeaderboardTabStyle('left', false) }, { asset: display.snowWarAsset('left_black'), color: 0xFFFFFF });
+    assert.deepEqual({ ...leaderboardTabs.snowWarLeaderboardTabStyle('right', true) }, { asset: display.snowWarAsset('right_blue'), color: 0x000000 });
 });

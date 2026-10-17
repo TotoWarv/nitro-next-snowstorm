@@ -1,6 +1,7 @@
 import { AvatarActionStateType, AvatarBodyPartType, AvatarDirectionAngle, AvatarFigurePartType, AvatarGeometryType, AvatarScaleType, AvatarSetType, IActiveActionData, IAnimationLayerData, IAvatarDataContainer, IAvatarEffectListener, IAvatarFigureContainer, IAvatarImage, IGraphicAsset, IPartColor, ISpriteDataContainer, RoomObjectSpriteData } from '@nitrodevco/nitro-api';
 import { Container, Filter, ImageLike, Point, PointData, Rectangle, RenderTexture, Sprite, Texture } from 'pixi.js';
 
+import { GraphicAsset } from '#renderer/assets';
 import { ExtendedSprite, GetTickerTime, TexturePool, TextureUtils } from '#renderer/utils';
 
 import { ActiveActionData } from './actions';
@@ -10,6 +11,7 @@ import { AvatarHitAlpha } from './AvatarHitAlpha';
 import { AvatarStructure } from './AvatarStructure';
 import { AvatarImageCache } from './cache';
 import { EffectAssetDownloadManager } from './EffectAssetDownloadManager';
+import { resolveAvatarSpriteAsset } from './resolveAvatarSpriteAsset';
 
 /** A full-figure render kept for re-use, with the row the figure starts at (for the cropped-top variant). */
 export interface AvatarImageCachedFullImage {
@@ -23,6 +25,8 @@ export class AvatarImage implements IAvatarImage, IAvatarEffectListener {
     /** The idle postures loop over 8 frames, everything else over 4 (the full-image cache key). */
     private static MAX_IDLE_FRAMES: number = 8;
     private static MAX_OTHER_FRAMES: number = 4;
+    private static LARGE_TO_SMALL_RATIO: number = 0.5;
+    private static REDUCED_SPRITE_ASSETS: Map<string, IGraphicAsset> = new Map();
     private static IDLE_ACTION_STRINGS: string[] = [ AvatarActionStateType.Stand, AvatarActionStateType.Lay, AvatarActionStateType.Sit ];
     private static DEFAULT_FIGURE: string = 'hr-893-45.hd-180-2.ch-210-66.lg-270-82.sh-300-91.wa-2007-.ri-1-';
 
@@ -831,6 +835,33 @@ export class AvatarImage implements IAvatarImage, IAvatarEffectListener {
 
     public getAsset(name: string): IGraphicAsset | undefined {
         return this._assets.getAsset(name);
+    }
+
+    public getSpriteAsset(member: string, direction: number, frame: number): IGraphicAsset | undefined {
+        return resolveAvatarSpriteAsset({
+            scale: this._scale,
+            largeScaledSmall: this._largeScaledSmall,
+            getAsset: name => this.getAsset(name),
+            reduce: asset => AvatarImage.reducedSpriteAsset(asset),
+        }, member, direction, frame);
+    }
+
+    private static reducedSpriteAsset(asset: IGraphicAsset): IGraphicAsset | undefined {
+        const cached = AvatarImage.REDUCED_SPRITE_ASSETS.get(asset.name);
+
+        if (cached) return cached;
+
+        if (!asset.texture) return undefined;
+
+        const texture = TextureUtils.createReducedTexture(asset.texture, AvatarImage.LARGE_TO_SMALL_RATIO);
+
+        if (!texture) return undefined;
+
+        const reduced = GraphicAsset.createAsset(asset.name, asset.source ?? '', texture, asset.x * AvatarImage.LARGE_TO_SMALL_RATIO, asset.y * AvatarImage.LARGE_TO_SMALL_RATIO, asset.flipH, asset.flipV, asset.usesPalette);
+
+        AvatarImage.REDUCED_SPRITE_ASSETS.set(asset.name, reduced);
+
+        return reduced;
     }
 
     public getDirection(): number {

@@ -8,6 +8,7 @@ import { useTranslation } from '#base/context/system';
 import { useOwnUserId } from '#base/context/user';
 import { Box, TemplateBindings, TemplateItem, TemplateWindow, useTemplateFrame, useTemplateLibrary } from '#base/theme';
 
+import { snowWarLeaderboardTabStyle } from './snowWarLeaderboardTabs';
 import { useSnowWarClock } from './useSnowWarClock';
 
 const TEMPLATE = snowWarTemplate('snowwar_leaderboard');
@@ -19,8 +20,6 @@ const FACE_DIRECTION = 2;
 const MINUTES_PER_HOUR = 60;
 const HOURS_PER_DAY = 24;
 const MS_PER_MINUTE = 60000;
-const SELECTED_TAB_TEXT = 0xFFFFFF;
-const TAB_TEXT = 0x000000;
 
 type LeaderboardPeriod = 'weekly' | 'total';
 type LeaderboardAudience = 'all' | 'friends';
@@ -66,6 +65,8 @@ export const SnowWarLeaderboardView = () => {
     });
     const weekLabel = (weekly && board?.year) ? ` ${board.year}/${board.week}` : '';
     const entryTemplate = templates?.[ENTRY_TEMPLATE];
+    const thisWeekTab = snowWarLeaderboardTabStyle('left', weekly);
+    const allTimeTab = snowWarLeaderboardTabStyle('right', !weekly);
 
     const scroll = (startRank: number) => snowWarRequestLeaderboard(send, kind, { startRank, weekOffset });
 
@@ -98,11 +99,11 @@ export const SnowWarLeaderboardView = () => {
     const bindings: TemplateBindings = {
         '': { caption: `${t('snowwar.leaderboards.link')}${weekLabel}` },
         this_week_region: { onPointerTap: () => setPeriod('weekly') },
-        this_week_image: { asset: snowWarAsset(weekly ? 'left_black' : 'left_blue') },
-        this_week_text: { color: weekly ? SELECTED_TAB_TEXT : TAB_TEXT },
+        this_week_image: { asset: thisWeekTab.asset },
+        this_week_text: { color: thisWeekTab.color },
         all_time_region: { onPointerTap: () => setPeriod('total') },
-        all_time_image: { asset: snowWarAsset(weekly ? 'right_blue' : 'right_black') },
-        all_time_text: { color: weekly ? TAB_TEXT : SELECTED_TAB_TEXT },
+        all_time_image: { asset: allTimeTab.asset },
+        all_time_text: { color: allTimeTab.color },
         list: { items: rows },
         scrollUp: { onPointerTap: () => canScrollUp && scroll(Math.max(FIRST_RANK, firstRank - VIEW_SIZE)) },
         'scrollUp/@0': { asset: snowWarAsset(canScrollUp ? 'scroll_up_normal' : 'scroll_up_inactive') },

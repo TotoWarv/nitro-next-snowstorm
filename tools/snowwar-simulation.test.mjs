@@ -70,6 +70,7 @@ const SnowWarMath = snowwar('SnowWarMath');
 const fixture = name => JSON.parse(readFileSync(new URL(`./fixtures/snowwar/${name}`, import.meta.url), 'utf8'));
 const scenario = fixture('scenario-1.json');
 const recording = fixture('scenario-1.checksums.json');
+const serverFullStatuses = fixture('scenario-1.full-status.json');
 
 const ARENA_FURNI = {
     snst_block1: [ 1, 1, 1440 ],
@@ -275,6 +276,42 @@ await test('a wrong checksum leaves its turn unapplied, the engine keeps simulat
 
     assert.equal(engine.inSync, true);
     assert.equal(engine.turn, 119);
+});
+
+await test('a full status captured by the server mid-motion with balls in flight resumes on the server checksums', () => {
+    assert.ok(serverFullStatuses.length > 0);
+
+    for (const capture of serverFullStatuses) {
+        assert.equal(capture.checksum, recording.turns[capture.turn].checksum);
+        assert.deepEqual(capture.events, recording.turns[capture.turn].events);
+        assert.ok(capture.objects.some(object => object.type === 1), `turn ${capture.turn} has no ball in flight`);
+
+        const engine = startedEngine();
+
+        replay(engine, 2);
+        engine.applyFullStatus({ ...fullStatusOf(plain(capture.objects), capture.turn), events: eventsOf(capture.events) });
+
+        assert.equal(engine.inSync, true);
+        assert.equal(engine.turn, capture.turn);
+
+        for (const turn of recording.turns.slice(capture.turn + 1)) assert.equal(engine.applyGameStatus(statusOf(turn)), 'applied', `turn ${turn.turn} diverged after the server full status of turn ${capture.turn}`);
+
+        assert.equal(engine.inSync, true);
+        assert.equal(engine.turn, 119);
+    }
+});
+
+await test('the engine rebuilt from a server full status matches the engine that played every turn', () => {
+    for (const capture of serverFullStatuses) {
+        const reference = startedEngine();
+        const resumed = startedEngine();
+
+        replay(reference, capture.turn + 1);
+        resumed.applyFullStatus({ ...fullStatusOf(plain(capture.objects), capture.turn), events: eventsOf(capture.events) });
+
+        assert.deepEqual(plain(resumed.snapshot()), plain(reference.snapshot()), `snapshot after the full status of turn ${capture.turn}`);
+        assert.deepEqual(plain(capture.objects), plain(reference.snapshot()), `server objects of turn ${capture.turn}`);
+    }
 });
 
 await test('a duplicate, stale or skipped turn is out of sequence: state untouched and still in sync', () => {

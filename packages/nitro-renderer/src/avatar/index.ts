@@ -39,6 +39,7 @@ export * from './geometry/Vector3D';
 export * from './GetAvatarRenderManager';
 export * from './LoadAvatarData';
 export * from './PlaceHolderAvatarImage';
+export * from './resolveAvatarSpriteAsset';
 export * from './structure/animation/AnimationAction';
 export * from './structure/animation/AnimationActionPart';
 export * from './structure/animation/AvatarAnimationFrame';

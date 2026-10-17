@@ -39,6 +39,7 @@ export interface IAvatarImage {
     getServerRenderData(): RoomObjectSpriteData[];
     getCanvasOffsets(): number[];
     getAsset(name: string): IGraphicAsset | undefined;
+    getSpriteAsset(member: string, direction: number, frame: number): IGraphicAsset | undefined;
     getDirection(): number;
     isAnimating(): boolean;
     isPlaceholder(): boolean;

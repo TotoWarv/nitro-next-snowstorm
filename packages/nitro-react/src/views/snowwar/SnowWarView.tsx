@@ -1,12 +1,10 @@
 import { useEffect } from 'react';
 
 import { showSnowWarError } from '#base/commands';
-import { isSnowWarScreenPhase, SnowWarPhase, snowWarStore, useSnowWarStore } from '#base/context/snowwar';
+import { SnowWarPhase, snowWarStore, useSnowWarStore } from '#base/context/snowwar';
 
 import { SnowWarEndingView } from './SnowWarEndingView';
-import { SnowWarGamesMainView } from './SnowWarGamesMainView';
 import { SnowWarHudView } from './SnowWarHudView';
-import { SnowWarLeaderboardView } from './SnowWarLeaderboardView';
 import { SnowWarLoadingView } from './SnowWarLoadingView';
 
 const HUD_PHASES = [ SnowWarPhase.Starting, SnowWarPhase.Running, SnowWarPhase.Ending ];
@@ -14,7 +12,6 @@ const HUD_PHASES = [ SnowWarPhase.Starting, SnowWarPhase.Running, SnowWarPhase.E
 export const SnowWarView = () => {
     const phase = useSnowWarStore(x => x.phase);
     const hasResults = useSnowWarStore(x => !!x.results);
-    const leaderboardOpen = useSnowWarStore(x => x.leaderboardOpen);
     const error = useSnowWarStore(x => x.error);
 
     useEffect(() => {
@@ -27,11 +24,9 @@ export const SnowWarView = () => {
 
     return (
         <>
-            {!isSnowWarScreenPhase(phase) && <SnowWarGamesMainView />}
-            {(phase === SnowWarPhase.Loading) && <SnowWarLoadingView />}
+            {(phase === SnowWarPhase.Loading) && !hasResults && <SnowWarLoadingView />}
             {HUD_PHASES.includes(phase) && !hasResults && <SnowWarHudView />}
             {hasResults && <SnowWarEndingView />}
-            {leaderboardOpen && <SnowWarLeaderboardView />}
         </>
     );
 };

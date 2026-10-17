@@ -25,6 +25,7 @@ type GameState = {
     rematchRequested: boolean;
     afterSki: boolean;
     awaitingRematch: boolean;
+    newGameRequested: boolean;
     chat: SnowWarChatLine[];
 };
 
@@ -60,6 +61,7 @@ type Actions = {
     setRematchRequested: (flag: boolean) => void;
     setAfterSki: (flag: boolean) => void;
     setAwaitingRematch: (flag: boolean) => void;
+    setNewGameRequested: (flag: boolean) => void;
     addChatLine: (line: SnowWarChatLine) => void;
     setBlockedUntil: (time: number) => void;
     setDirectory: (status: number, gamesPlayed: number, freeGamesLeft: number) => void;
@@ -90,6 +92,7 @@ const freshGame = (): GameState => ({
     rematchRequested: false,
     afterSki: false,
     awaitingRematch: false,
+    newGameRequested: false,
     chat: [],
 });
 
@@ -123,11 +126,12 @@ export const createSnowWarStore = () => createStore<SnowWarStore>()(set => ({
     setRematchRequested: rematchRequested => set({ rematchRequested }),
     setAfterSki: afterSki => set({ afterSki }),
     setAwaitingRematch: awaitingRematch => set({ awaitingRematch }),
+    setNewGameRequested: newGameRequested => set({ newGameRequested }),
     addChatLine: line => set(x => ({ chat: [ ...x.chat, line ].slice(-SNOWWAR_CHAT_HISTORY) })),
     setBlockedUntil: blockedUntil => set({ blockedUntil }),
     setDirectory: (directoryStatus, gamesPlayed, freeGamesLeft) => set({ directoryStatus, gamesPlayed, freeGamesLeft }),
     setAccount: (gamesPlayed, freeGamesLeft) => set({ gamesPlayed, freeGamesLeft }),
-    setError: error => set({ error }),
+    setError: error => set(error ? { error, newGameRequested: false } : { error }),
     setLeaderboard: (kind, view) => set(x => ({ leaderboards: { ...x.leaderboards, [kind]: view } })),
     setPreviousRoomId: previousRoomId => set({ previousRoomId }),
     setMainViewOpen: mainViewOpen => set({ mainViewOpen }),

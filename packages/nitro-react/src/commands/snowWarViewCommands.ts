@@ -2,7 +2,7 @@ import { WebSocketConnection } from '#base/context/communication';
 import { snowWarErrorKey, SnowWarErrorView, SnowWarPhase, snowWarStore } from '#base/context/snowwar';
 import { systemStore } from '#base/context/system';
 
-import { snowWarCheckDirectory, snowWarLeaveLobby, snowWarRequestAccountStatus } from './snowWarCommands';
+import { snowWarCheckDirectory, snowWarExit, snowWarLeaveLobby, snowWarQuickJoin, snowWarRequestAccountStatus } from './snowWarCommands';
 
 type Send = WebSocketConnection['send'];
 
@@ -39,4 +39,23 @@ export const showSnowWarError = (error: SnowWarErrorView): void => {
 
     snowWarStore.getState().setError(undefined);
     showAlert(getLocalizationValue('generic.alert.title'), getLocalizationValue(snowWarErrorKey(error)));
+};
+
+export const snowWarNewGame = (send: Send): void => {
+    const { results, newGameRequested, setNewGameRequested } = snowWarStore.getState();
+
+    if (!results || newGameRequested) return;
+
+    setNewGameRequested(true);
+    snowWarQuickJoin(send);
+};
+
+export const leaveSnowWarResults = (send: Send): void => {
+    if (snowWarStore.getState().newGameRequested) {
+        snowWarLeaveLobby(send);
+
+        return;
+    }
+
+    snowWarExit(send);
 };

@@ -114,6 +114,7 @@ const { snowWarStore, SnowWarPhase } = requireModule('nitro-react/src/context/sn
 const viewCommands = requireModule('nitro-react/src/commands/snowWarViewCommands');
 const teamRows = requireModule('nitro-react/src/views/snowwar/snowWarTeamRows');
 const board = requireModule('nitro-react/src/views/snowwar/snowWarBoardBindings');
+const chatLayout = requireModule('nitro-react/src/views/snowwar/snowWarChatLayout');
 
 const send = (...packets) => {
     for (const packet of packets) world.sent.push(packet);
@@ -378,4 +379,89 @@ await test('the loading animation cycles through eight frames', () => {
     assert.equal(board.snowWarLoadingAssetAt(0), 'habbo-games-com-load_1');
     assert.equal(board.snowWarLoadingAssetAt(7), 'habbo-games-com-load_8');
     assert.equal(board.snowWarLoadingAssetAt(8), 'habbo-games-com-load_1');
+});
+
+const endedGame = { timeToNextState: 30, isDeathMatch: false, resultType: 1, winnerId: 1, teams: [], playerWithMostKills: 0, playerWithMostHits: 0 };
+
+await test('the hotel windows stay hidden while the results are up, even once a new lobby is joined', () => {
+    assert.equal(display.isSnowWarHidingHotel({ phase: SnowWarPhase.Lobby, results: undefined }), false);
+    assert.equal(display.isSnowWarHidingHotel({ phase: SnowWarPhase.Inactive, results: undefined }), false);
+    assert.equal(display.isSnowWarHidingHotel({ phase: SnowWarPhase.Running, results: undefined }), true);
+    assert.equal(display.isSnowWarHidingHotel({ phase: SnowWarPhase.Lobby, results: endedGame }), true);
+    assert.equal(display.isSnowWarHidingHotel({ phase: SnowWarPhase.Inactive, results: endedGame }), true);
+});
+
+await test('closing the results shows the hotel windows again', () => {
+    const state = snowWarStore.getState();
+
+    state.setPhase(SnowWarPhase.Ending);
+    state.setResults(endedGame);
+    state.setAfterSki(true);
+    assert.equal(display.isSnowWarHidingHotel(snowWarStore.getState()), true);
+
+    viewCommands.leaveSnowWarResults(send);
+
+    assert.equal(display.isSnowWarHidingHotel(snowWarStore.getState()), false);
+});
+
+await test('a new game from the results asks to join once and waits', () => {
+    const state = snowWarStore.getState();
+
+    state.setPhase(SnowWarPhase.Ending);
+    state.setResults(endedGame);
+    state.setAfterSki(true);
+    viewCommands.snowWarNewGame(send);
+    viewCommands.snowWarNewGame(send);
+
+    assert.equal(snowWarStore.getState().newGameRequested, true);
+    assert.deepEqual(sentNames(), [ 'Game2QuickJoinGameComposer' ]);
+});
+
+await test('a refused new game goes back to the results and leaving sends no lobby leave', () => {
+    const state = snowWarStore.getState();
+
+    state.setPhase(SnowWarPhase.Ending);
+    state.setResults(endedGame);
+    state.setAfterSki(true);
+    viewCommands.snowWarNewGame(send);
+    snowWarStore.getState().setError({ kind: 'joining', reason: 6 });
+
+    assert.equal(snowWarStore.getState().newGameRequested, false);
+
+    world.sent.length = 0;
+    viewCommands.leaveSnowWarResults(send);
+
+    assert.deepEqual(sentNames(), []);
+    assert.equal(snowWarStore.getState().results, undefined);
+});
+
+await test('leaving the results while a new game is pending leaves its lobby', () => {
+    const state = snowWarStore.getState();
+
+    state.setPhase(SnowWarPhase.Ending);
+    state.setResults(endedGame);
+    state.setAfterSki(true);
+    viewCommands.snowWarNewGame(send);
+    world.sent.length = 0;
+    viewCommands.leaveSnowWarResults(send);
+
+    assert.deepEqual(sentNames(), [ 'Game2LeaveGameComposer' ]);
+});
+
+await test('chat bubbles sit 300 px left of the centre for the blue team and right for the red team', () => {
+    const area = { width: 1440, minLeft: 200, edge: 10 };
+
+    assert.equal(chatLayout.snowWarChatBubbleLeft(1, 220, area), 720 - 300 - 110);
+    assert.equal(chatLayout.snowWarChatBubbleLeft(1, 220, { width: 1000, minLeft: 200, edge: 10 }), 200);
+    assert.equal(chatLayout.snowWarChatBubbleLeft(2, 220, area), 720 + 300 - 110);
+});
+
+await test('chat bubbles stay between the own stats panel and the right edge on a narrow screen', () => {
+    const area = { width: 390, minLeft: 191, edge: 10 };
+    const bubbleWidth = chatLayout.snowWarChatBubbleWidth(area);
+
+    assert.equal(bubbleWidth, 189);
+    assert.equal(chatLayout.snowWarChatBubbleLeft(1, bubbleWidth, area), 191);
+    assert.equal(chatLayout.snowWarChatBubbleLeft(2, bubbleWidth, area), 191);
+    assert.equal(chatLayout.snowWarChatBubbleWidth({ width: 1440, minLeft: 200, edge: 10 }), chatLayout.SNOWWAR_CHAT_BUBBLE_WIDTH);
 });

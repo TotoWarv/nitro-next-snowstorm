@@ -1,7 +1,7 @@
 import type { SnowWarTeamPlayerData, SnowWarTeamScoreData } from '@nitrodevco/nitro-packets';
 import { useState } from 'react';
 
-import { askForAFriend, canBeAskedForAFriend, snowWarExit, snowWarLeaveLobby, snowWarPlayAgain, snowWarQuickJoin } from '#base/commands';
+import { askForAFriend, canBeAskedForAFriend, leaveSnowWarResults, snowWarNewGame, snowWarPlayAgain } from '#base/commands';
 import { useWebSocketContext } from '#base/context/communication';
 import { SNOWWAR_LIBRARY, SNOWWAR_RESULT_TIE, SNOWWAR_TEAM_BLUE, SNOWWAR_TEAM_RED, SNOWWAR_TIE_COLOR, snowWarArenaNameKey, snowWarAsset, snowWarSecondsUntil, snowWarTeamColor, useSnowWarStore } from '#base/context/snowwar';
 import { useTranslation } from '#base/context/system';
@@ -64,13 +64,13 @@ export const SnowWarEndingView = () => {
     const rematchRequested = useSnowWarStore(x => x.rematchRequested);
     const afterSki = useSnowWarStore(x => x.afterSki);
     const awaitingRematch = useSnowWarStore(x => x.awaitingRematch);
+    const newGameRequested = useSnowWarStore(x => x.newGameRequested);
     const ownUserId = useOwnUserId();
     const userState = useUserStore(x => x);
     const templates = useTemplateLibrary(SNOWWAR_LIBRARY);
     const now = useSnowWarClock(TICK_MS);
     const [ shownAt ] = useState(() => Date.now());
     const [ endedGameId ] = useState(() => lobby?.gameId);
-    const [ newGameRequested, setNewGameRequested ] = useState(false);
     const { send } = useWebSocketContext();
     const t = useTranslation();
 
@@ -79,38 +79,32 @@ export const SnowWarEndingView = () => {
     const loadingFrame = snowWarFrameAt(now, TICK_MS, LOADING_FRAMES);
     const waiting = awaitingRematch || newGameRequested;
 
-    const leave = () => {
-        if (newGameRequested) {
-            snowWarLeaveLobby(send);
-
-            return;
-        }
-
-        snowWarExit(send);
-    };
+    const leave = () => leaveSnowWarResults(send);
 
     if (waiting) {
         const nextLobby = (lobby && (lobby.gameId !== endedGameId)) ? lobby : undefined;
-        const players = nextLobby?.players ?? (lobby?.players ?? []).filter(player => rematchUserIds.includes(player.userId));
+        const players = nextLobby?.players ?? (awaitingRematch ? (lobby?.players ?? []).filter(player => rematchUserIds.includes(player.userId)) : []);
         const title = counter
             ? t('snowwar.lobby_game_start_countdown', '', { seconds: String(snowWarSecondsUntil(counter.endsAt, now)) })
             : t('snowwar.waiting_players');
         const fieldType = nextLobby?.fieldType ?? lobby?.fieldType ?? 0;
 
         return (
-            <SnowWarScreen bindings={snowWarWaitingBindings({
-                templates,
-                players,
-                ownUserId,
-                readyUserIds: undefined,
-                loadingFrame,
-                fieldType,
-                arenaName: t(snowWarArenaNameKey(fieldType), nextLobby?.levelName ?? lobby?.levelName ?? ''),
-                loadingText: t('snowwar.waiting_players'),
-                scoreLabel: t('snowwar.stats.total_score'),
-                title,
-                onLeave: leave,
-            })}
+            <SnowWarScreen
+                key="waiting"
+                bindings={snowWarWaitingBindings({
+                    templates,
+                    players,
+                    ownUserId,
+                    readyUserIds: undefined,
+                    loadingFrame,
+                    fieldType,
+                    arenaName: t(snowWarArenaNameKey(fieldType), nextLobby?.levelName ?? lobby?.levelName ?? ''),
+                    loadingText: t('snowwar.waiting_players'),
+                    scoreLabel: t('snowwar.stats.total_score'),
+                    title,
+                    onLeave: leave,
+                })}
             />
         );
     }
@@ -162,15 +156,17 @@ export const SnowWarEndingView = () => {
         button_play_again: {
             visible: afterSki,
             disabled: newGameRequested,
-            onPointerTap: () => {
-                setNewGameRequested(true);
-                snowWarQuickJoin(send);
-            },
+            onPointerTap: () => snowWarNewGame(send),
         },
         button_buy_games: { visible: false },
         leave_link_region: { onPointerTap: leave },
         mainLoadingIcon: { asset: snowWarAsset(`load_${loadingFrame + 1}`) },
     };
 
-    return <SnowWarScreen bindings={bindings} />;
+    return (
+        <SnowWarScreen
+            key="results"
+            bindings={bindings}
+        />
+    );
 };

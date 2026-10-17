@@ -52,6 +52,8 @@ export const snowWarSecondsUntil = (endsAt: number, now: number): number => Math
 
 export const isSnowWarScreenPhase = (phase: SnowWarPhase): boolean => SCREEN_PHASES.includes(phase);
 
+export const isSnowWarHidingHotel = ({ phase, results }: { phase: SnowWarPhase; results: unknown }): boolean => isSnowWarScreenPhase(phase) || (results !== undefined);
+
 export const sortSnowWarPlayersByLevel = (players: readonly IGameLobbyPlayerData[]): IGameLobbyPlayerData[] => [ ...players ].sort((first, second) => second.skillLevel - first.skillLevel);
 
 export const snowWarTeamColor = (team: number): number => ((team === SNOWWAR_TEAM_RED) ? SNOWWAR_TEAM_RED_COLOR : SNOWWAR_TEAM_BLUE_COLOR);

@@ -1,7 +1,8 @@
+import type { ISnowWarTile } from './ISnowWarTile';
 import type { SnowWarGameObject } from './SnowWarGameObject';
 import { tileToWorld } from './SnowWarMath';
 
-export class SnowWarTile {
+export class SnowWarTile implements ISnowWarTile {
     public height = 0;
     public fuseObjectCount = 0;
     public isBlocked = false;

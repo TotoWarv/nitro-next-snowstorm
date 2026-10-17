@@ -18,11 +18,22 @@ const sourceFor = (specifier) => {
     throw new Error(`Module not found: ${specifier}`);
 };
 
+const SIMULATION_ROOT = 'nitro-react/src/snowwar/';
+const NITRO_API = Symbol('nitro-api');
+
 const resolveSpecifier = (from, name) => {
     if (name.startsWith('.')) return new URL(name, new URL(from, packagesRoot)).pathname.slice(packagesRoot.pathname.length);
 
-    throw new Error(`The simulation must not depend on ${name} (imported by ${from})`);
+    if (from.startsWith(SIMULATION_ROOT)) throw new Error(`The simulation must not depend on ${name} (imported by ${from})`);
+
+    if (name === '@nitrodevco/nitro-api') return NITRO_API;
+
+    if (name.startsWith('#api/')) return `nitro-api/src/${name.slice(5)}`;
+
+    throw new Error(`Unexpected dependency ${name} in ${from}`);
 };
+
+const nitroApi = () => requireModule('nitro-api/src/room/object/data/GetObjectDataForFlags');
 
 const requireModule = (specifier) => {
     const url = sourceFor(specifier);
@@ -39,13 +50,19 @@ const requireModule = (specifier) => {
 
     runInNewContext(outputText, {
         exports,
-        require: name => requireModule(resolveSpecifier(relative, name)),
+        TextDecoder,
+        TextEncoder,
+        require: (name) => {
+            const target = resolveSpecifier(relative, name);
+
+            return (target === NITRO_API) ? nitroApi() : requireModule(target);
+        },
     });
 
     return exports;
 };
 
-const snowwar = path => requireModule(`nitro-react/src/snowwar/${path}`);
+const snowwar = path => requireModule(`${SIMULATION_ROOT}${path}`);
 const { SnowWarEngine } = snowwar('SnowWarEngine');
 const { SnowWarChecksumBuilder } = snowwar('SnowWarChecksum');
 const SnowWarMath = snowwar('SnowWarMath');
@@ -109,7 +126,7 @@ const startedEngine = (listener = recordingListener(), ownUserId = 0) => {
 };
 
 const replay = (engine, untilTurn) => {
-    for (const turn of recording.turns.slice(0, untilTurn)) assert.equal(engine.applyGameStatus(statusOf(turn)), true, `turn ${turn.turn} diverged`);
+    for (const turn of recording.turns.slice(0, untilTurn)) assert.equal(engine.applyGameStatus(statusOf(turn)), 'applied', `turn ${turn.turn} diverged`);
 };
 
 await test('math helpers give the control values of the behaviour book', () => {
@@ -170,7 +187,7 @@ await test('replaying scenario-1 gives the server checksum on every one of the 1
     assert.equal(recording.turns.length, 120);
 
     for (const turn of recording.turns) {
-        assert.equal(engine.applyGameStatus(statusOf(turn)), true, `turn ${turn.turn} diverged`);
+        assert.equal(engine.applyGameStatus(statusOf(turn)), 'applied', `turn ${turn.turn} diverged`);
         assert.equal(engine.turn, turn.turn);
     }
 });
@@ -206,52 +223,115 @@ await test('humans and snowballs expose the simulated state, and ownHumanId foll
     assert.equal(startedEngine().ownHumanId, -1);
 });
 
-await test('a wrong checksum is refused, keeps the previous turn and notifies nothing; a full status then restores equality', () => {
+const fullStatusOf = (objects, turn) => ({
+    unusedLeadingValue: 0,
+    remainingSeconds: 170,
+    durationSeconds: 180,
+    objects,
+    unusedValueBeforeTeams: 0,
+    numberOfTeams: 2,
+    ...statusOf(recording.turns[turn]),
+});
+
+await test('a wrong checksum leaves its turn unapplied, the engine keeps simulating out of sync, and a full status brings it back in sync', () => {
     const reference = startedEngine();
     const listener = recordingListener();
     const engine = startedEngine(listener);
     const divergingTurn = 41;
+    const resyncTurn = divergingTurn + 3;
 
-    replay(reference, divergingTurn + 1);
+    replay(reference, resyncTurn + 1);
     replay(engine, divergingTurn);
 
     const before = plain(engine.snapshot());
     const heardBefore = listener.heard.length;
     const corrupted = statusOf(recording.turns[divergingTurn]);
 
-    assert.equal(engine.applyGameStatus({ ...corrupted, checksum: corrupted.checksum ^ 1 }), false);
+    assert.equal(engine.inSync, true);
+    assert.equal(engine.applyGameStatus({ ...corrupted, checksum: corrupted.checksum ^ 1 }), 'checksumMismatch');
+    assert.equal(engine.inSync, false);
     assert.equal(engine.turn, divergingTurn - 1);
     assert.deepEqual(plain(engine.snapshot()), before);
     assert.equal(listener.heard.length, heardBefore);
 
-    assert.equal(engine.applyGameStatus(statusOf(recording.turns[divergingTurn + 1])), false);
-    assert.deepEqual(plain(engine.snapshot()), before);
+    for (let turn = divergingTurn + 1; turn <= resyncTurn; turn++) {
+        const status = statusOf(recording.turns[turn]);
 
-    engine.applyFullStatus({
-        unusedLeadingValue: 0,
-        remainingSeconds: 170,
-        durationSeconds: 180,
-        objects: plain(reference.snapshot()),
-        unusedValueBeforeTeams: 0,
-        numberOfTeams: 2,
-        ...statusOf(recording.turns[divergingTurn]),
-    });
+        assert.equal(engine.applyGameStatus({ ...status, checksum: status.checksum ^ 7 }), 'applied', `turn ${turn} was not simulated out of sync`);
+        assert.equal(engine.turn, turn);
+        assert.equal(engine.inSync, false);
+    }
 
-    assert.equal(engine.turn, divergingTurn);
+    assert.ok(listener.heard.length > heardBefore);
     assert.deepEqual(plain(engine.snapshot()), plain(reference.snapshot()));
 
-    for (const turn of recording.turns.slice(divergingTurn + 1)) assert.equal(engine.applyGameStatus(statusOf(turn)), true, `turn ${turn.turn} diverged after the full status`);
+    engine.applyFullStatus(fullStatusOf(plain(reference.snapshot()), resyncTurn));
+
+    assert.equal(engine.inSync, true);
+    assert.equal(engine.turn, resyncTurn);
+    assert.deepEqual(plain(engine.snapshot()), plain(reference.snapshot()));
+
+    for (const turn of recording.turns.slice(resyncTurn + 1)) assert.equal(engine.applyGameStatus(statusOf(turn)), 'applied', `turn ${turn.turn} diverged after the full status`);
+
+    assert.equal(engine.inSync, true);
+    assert.equal(engine.turn, 119);
 });
 
-await test('a stale or skipped turn is refused without touching the state', () => {
+await test('a duplicate, stale or skipped turn is out of sequence: state untouched and still in sync', () => {
     const engine = startedEngine();
 
     replay(engine, 10);
 
     const before = plain(engine.snapshot());
 
-    assert.equal(engine.applyGameStatus(statusOf(recording.turns[5])), false);
-    assert.equal(engine.applyGameStatus(statusOf(recording.turns[12])), false);
+    assert.equal(engine.applyGameStatus(statusOf(recording.turns[9])), 'outOfSequence');
+    assert.equal(engine.applyGameStatus(statusOf(recording.turns[5])), 'outOfSequence');
+    assert.equal(engine.applyGameStatus(statusOf(recording.turns[12])), 'outOfSequence');
+    assert.equal(engine.inSync, true);
+    assert.equal(engine.turn, 9);
     assert.deepEqual(plain(engine.snapshot()), before);
-    assert.equal(engine.applyGameStatus(statusOf(recording.turns[10])), true);
+    assert.equal(engine.applyGameStatus(statusOf(recording.turns[10])), 'applied');
+});
+
+await test('the engine builds its arena from a level parsed by nitro-packets out of the server bytes', () => {
+    const { BinaryReader } = requireModule('nitro-api/src/utils/BinaryReader');
+    const { EvaWireDataWrapper } = requireModule('nitro-api/src/communication/EvaWireDataWrapper');
+    const { Game2EnterArenaMessage } = requireModule('nitro-packets/src/incoming/Game/Snowwar/Arena/Game2EnterArenaMessage');
+    const hex = readFileSync(new URL('./fixtures/snowwar/Game2EnterArenaMessageComposer.hex', import.meta.url), 'utf8').trim();
+    const bytes = Uint8Array.from(Buffer.from(hex, 'hex'));
+    const { level } = new Game2EnterArenaMessage().parse(new EvaWireDataWrapper(0, new BinaryReader(bytes.buffer)));
+    const engine = new SnowWarEngine(level, recordingListener());
+    const tileOf = (x, y) => {
+        const tile = engine.tile(x, y);
+
+        return tile && plain({ x: tile.x, y: tile.y, height: tile.height, isWalkable: tile.isWalkable });
+    };
+
+    assert.deepEqual([ level.width, level.height, level.heightMap ], [ 3, 2, '000\r0x0' ]);
+    assert.deepEqual(tileOf(0, 0), { x: 0, y: 0, height: 0, isWalkable: true });
+    assert.deepEqual(tileOf(1, 0), { x: 1, y: 0, height: 3200, isWalkable: false });
+    assert.deepEqual(tileOf(2, 0), { x: 2, y: 0, height: 0, isWalkable: true });
+    assert.deepEqual(tileOf(0, 1), { x: 0, y: 1, height: 0, isWalkable: true });
+    assert.equal(engine.tile(1, 1), null);
+    assert.deepEqual(tileOf(2, 1), { x: 2, y: 1, height: 0, isWalkable: true });
+    assert.equal(engine.tile(3, 0), null);
+    assert.deepEqual(plain(engine.snapshot()), []);
+});
+
+await test('footprints, stacked blocks and rotated fences of the level reach the right tiles', () => {
+    const engine = startedEngine();
+    const tileOf = (x, y) => {
+        const tile = engine.tile(x, y);
+
+        return plain([ tile.height, tile.isWalkable ]);
+    };
+
+    assert.deepEqual(tileOf(14, 12), [ 3520, false ]);
+    assert.deepEqual(tileOf(18, 9), [ 960, false ]);
+    assert.deepEqual(tileOf(19, 9), [ 960, false ]);
+    assert.deepEqual(tileOf(18, 10), [ 0, true ]);
+    assert.deepEqual(tileOf(20, 6), [ 1600, false ]);
+    assert.deepEqual(tileOf(10, 10), [ 0, false ]);
+    assert.deepEqual(tileOf(2, 15), [ 0, true ]);
+    assert.equal(engine.tile(12, 7), null);
 });

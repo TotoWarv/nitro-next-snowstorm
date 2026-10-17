@@ -36,6 +36,8 @@ type AccountState = {
     error: SnowWarErrorView | undefined;
     leaderboards: Partial<Record<SnowWarLeaderboardKind, SnowWarLeaderboardView>>;
     previousRoomId: number;
+    mainViewOpen: boolean;
+    leaderboardOpen: boolean;
 };
 
 type Actions = {
@@ -65,6 +67,8 @@ type Actions = {
     setError: (error: SnowWarErrorView | undefined) => void;
     setLeaderboard: (kind: SnowWarLeaderboardKind, view: SnowWarLeaderboardView) => void;
     setPreviousRoomId: (roomId: number) => void;
+    setMainViewOpen: (open: boolean) => void;
+    setLeaderboardOpen: (open: boolean) => void;
 };
 
 export type SnowWarStore = GameState & AccountState & Actions;
@@ -98,6 +102,8 @@ export const createSnowWarStore = () => createStore<SnowWarStore>()(set => ({
     error: undefined,
     leaderboards: {},
     previousRoomId: 0,
+    mainViewOpen: false,
+    leaderboardOpen: false,
     resetGame: () => set(freshGame()),
     beginGame: lobby => set({ ...freshGame(), phase: SnowWarPhase.Loading, lobby }),
     setPhase: phase => set({ phase }),
@@ -124,6 +130,8 @@ export const createSnowWarStore = () => createStore<SnowWarStore>()(set => ({
     setError: error => set({ error }),
     setLeaderboard: (kind, view) => set(x => ({ leaderboards: { ...x.leaderboards, [kind]: view } })),
     setPreviousRoomId: previousRoomId => set({ previousRoomId }),
+    setMainViewOpen: mainViewOpen => set({ mainViewOpen }),
+    setLeaderboardOpen: leaderboardOpen => set({ leaderboardOpen }),
 }));
 
 export const snowWarStore = createSnowWarStore();

@@ -59,6 +59,7 @@ import { CameraView } from './views/room-widgets/camera/CameraView';
 import { PhotoPurchaseConfirmationView } from './views/room-widgets/camera/PhotoPurchaseConfirmationView';
 import { RoomChatInputView } from './views/room-widgets/chat-input/RoomChatInputView';
 import { PetTrainingView } from './views/room-widgets/pet-training/PetTrainingView';
+import { SnowWarView } from './views/snowwar/SnowWarView';
 import { SystemDialogsView } from './views/system/SystemDialogsView';
 import { TemplatePreviewView } from './views/system/TemplatePreviewView';
 import { ViewErrorBoundaries } from './views/system/ViewErrorBoundary';
@@ -232,6 +233,7 @@ export const MainView = () => {
                     <MotdNotificationComponent />
                     <EpicPopupComponent />
                     <NotificationPopupsView />
+                    <SnowWarView />
                     <SystemDialogsView />
                     {/* Context 3: every `ModalDialog` is moved in here, over the windows and their popups. */}
                     <ModalLayer />

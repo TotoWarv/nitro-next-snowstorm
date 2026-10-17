@@ -19,7 +19,7 @@
  */
 import { GetAssetManager } from '@nitrodevco/nitro-renderer';
 import { Container as PixiContainer, Graphics as PixiGraphics, RenderLayer } from 'pixi.js';
-import { createContext, memo, ReactNode, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { createContext, Fragment, memo, ReactNode, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState, useSyncExternalStore } from 'react';
 
 import { Border } from '../Border';
 import { Box, BoxLayout } from '../Box';
@@ -53,7 +53,7 @@ import { ImageProps, ThemeImage } from '../ThemeImage';
 import { ThemeText } from '../ThemeText';
 import { ButtonVariant, FLASH_INVERT_COLOR, FlashBitmapVars, flashBlendMode, FrameSize, ThemeVariant, themeVariantOf, toCssHexColor, WindowPlacedContext } from '../utils';
 import { localizeCaption } from './localizeCaption';
-import { isMarkupTemplateText, knownTemplateTextStyle, measureTemplateText, templateFontSize, templateTextFormat, templateTextStyle, templateWrapWidth } from './measureTemplateText';
+import { isMarkupTemplateText, isThickTemplateText, knownTemplateTextStyle, measureTemplateText, templateFontSize, templateTextFormat, templateTextStyle, templateWrapWidth } from './measureTemplateText';
 import { resolveTemplateNames, TemplateBinding, TemplateBindings, TemplateBindingStore, TemplateExpander, TemplateWindows } from './templateBindings';
 import { Template, TemplateElement, templateSkinKey, TemplateValue } from './templateData';
 import { layoutTemplate, LayoutWindow, linkTemplateScrollbars, TEMPLATE_LISTS, TEMPLATE_SCROLLBAR_TAGS, TemplateArrange, TemplateButtonLabel, TemplateRect, TemplateScroll, templateTextMargins, templateUsesParentGraphics } from './templateLayout';
@@ -778,6 +778,8 @@ const limitedFill = (element: TemplateElement): BoxLayout => {
     return { ...FILL, ...((maxWidth !== null) && { minWidth: 0 }), ...((maxHeight !== null) && { minHeight: 0 }) };
 };
 
+const THICK_TEXT_OFFSETS: readonly (readonly [number, number])[] = [ [ -1, -1 ], [ 0, -1 ], [ 1, -1 ], [ -1, 0 ], [ 1, 0 ], [ -1, 1 ], [ 0, 1 ], [ 1, 1 ], [ 0, 0 ] ];
+
 const textOf = (element: TemplateElement, rect: TemplateRect, context: Context, binding: TemplateBinding | undefined): ReactNode => {
     const label = element.tag === 'label';
     const style = templateTextStyle(element);
@@ -847,6 +849,14 @@ const textOf = (element: TemplateElement, rect: TemplateRect, context: Context, 
      */
     const fieldOf = (scroll?: TemplateFieldScroll) => {
         const vertical = scroll?.vertical;
+
+        if (!label && !vertical && isThickTemplateText(element)) {
+            return THICK_TEXT_OFFSETS.map(([ dx, dy ]) => (
+                <Fragment key={`${dx},${dy}`}>
+                    {textAt({ position: 'absolute', left: margins.left + dx, top: margins.top + dy, width: fieldWidth, height: fieldHeight }, clipped)}
+                </Fragment>
+            ));
+        }
 
         if (label || !vertical) return textAt({ position: 'absolute', left: margins.left, top: margins.top, width: fieldWidth, height: fieldHeight }, clipped);
 

@@ -47,6 +47,7 @@ const FONT_FACES: Readonly<Record<string, string>> = {
     'Ubuntu bold': 'UbuntuBold',
     'Ubuntu condensed': 'UbuntuCondensed',
     UbuntuCondensed: 'UbuntuCondensed',
+    UbuntuThick: 'Ubuntu',
     Volter: 'Volter',
     'Volter Bold': 'VolterBold',
 };
@@ -61,6 +62,10 @@ const VAR_COUNTS_WHEN_FALSY = new Set([ 'bold', 'italic', 'underline', 'font_fac
 
 /** The `TextField` fields a face override may set over the layout's own vars (`FlashTextFieldOverrides`). */
 const FACE_OVERRIDE_FIELDS: readonly (keyof FlashTextFieldOverrides)[] = [ 'bold', 'italic', 'underline', 'letterSpacing', 'leading', 'antiAliasType', 'gridFitType', 'thickness', 'sharpness', 'kerning', 'etchingColor', 'etchingPosition' ];
+
+const THICK_FONT_FACE = 'UbuntuThick';
+
+export const isThickTemplateText = (element: TemplateElement): boolean => element.vars.font_face === THICK_FONT_FACE;
 
 /**
  * A text's format vars over its style, as `ThemeText` takes them: `font_face` as `fontFamily`, the

@@ -820,8 +820,24 @@ await test('play again is sent once and marks the request', () => {
     assert.equal(sentNamed('Game2PlayAgainComposer').length, 1);
     assert.equal(state().rematchRequested, true);
 
+    emit('Game2PlayerRematchesMessage', { userId: OWN_USER_ID });
     emit('Game2GameRejoinMessage', { roomId: 123 });
     assert.equal(state().afterSki, false, 'a rematch waits for players instead of the after-ski');
+    assert.equal(state().awaitingRematch, true);
+    assert.equal(state().phase, SnowWarPhase.Ending);
+});
+
+await test('a play again the server never confirmed before the results closed leads to the after-ski instead of waiting forever', () => {
+    startGame();
+    emit('Game2StageEndingMessage', { timeToNextState: 0 });
+    emit('Game2GameEndingMessage', parseFixture('Game/Snowwar/Arena/Game2GameEndingMessage', 'Game2GameEndingMessage', 'Game2GameEndingMessageComposer'));
+
+    commands.snowWarPlayAgain(socket.send);
+    emit('Game2PlayerRematchesMessage', { userId: OWN_USER_ID + 1 });
+    emit('Game2GameRejoinMessage', { roomId: 123 });
+
+    assert.equal(state().awaitingRematch, false, 'no lobby will come for a rematch the server did not take');
+    assert.equal(state().afterSki, true);
     assert.equal(state().phase, SnowWarPhase.Ending);
 });
 

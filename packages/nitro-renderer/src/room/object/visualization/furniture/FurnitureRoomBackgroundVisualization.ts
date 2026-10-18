@@ -2,6 +2,7 @@ import { RoomGeometryScaleType } from '@nitrodevco/nitro-api';
 import { Texture } from 'pixi.js';
 
 import { DirectionalOffsetData } from '../data';
+import { backgroundImageOffset } from './backgroundImageOffset';
 import { FurnitureRoomBrandingVisualization } from './FurnitureRoomBrandingVisualization';
 
 /**
@@ -33,20 +34,20 @@ export class FurnitureRoomBackgroundVisualization extends FurnitureRoomBrandingV
         if (this._imageOffset) {
             const offset = this._imageOffset.getXOffset(direction, 0);
 
-            if (offset !== undefined) return offset + this._offsetX;
+            if (offset !== undefined) return offset + backgroundImageOffset(this._offsetX, this._imageUrl, scale);
         }
 
-        return super.getLayerXOffset(scale, direction, layerId) + this._offsetX;
+        return super.getLayerXOffset(scale, direction, layerId) + backgroundImageOffset(this._offsetX, this._imageUrl, scale);
     }
 
     protected override getLayerYOffset(scale: RoomGeometryScaleType, direction: number, layerId: number): number {
         if (this._imageOffset) {
             const offset = this._imageOffset.getYOffset(direction, 0);
 
-            if (offset !== undefined) return offset + this._offsetY;
+            if (offset !== undefined) return offset + backgroundImageOffset(this._offsetY, this._imageUrl, scale);
         }
 
-        return super.getLayerYOffset(scale, direction, layerId) + this._offsetY;
+        return super.getLayerYOffset(scale, direction, layerId) + backgroundImageOffset(this._offsetY, this._imageUrl, scale);
     }
 
     protected override getLayerZOffset(scale: RoomGeometryScaleType, direction: number, layerId: number): number {

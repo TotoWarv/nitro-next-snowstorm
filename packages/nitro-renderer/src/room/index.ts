@@ -187,6 +187,7 @@ export * from './object/visualization/data/SizeData';
 export * from './object/visualization/furniture/AnimatedFurnitureVisualization';
 export * from './object/visualization/furniture/AnimatedFurnitureVisualizationData';
 export * from './object/visualization/furniture/AvatarFurnitureVisualizationData';
+export * from './object/visualization/furniture/backgroundImageOffset';
 export * from './object/visualization/furniture/ExternalIsometricImageFurniVisualization';
 export * from './object/visualization/furniture/FurnitureBadgeDisplayVisualization';
 export * from './object/visualization/furniture/FurnitureBottleVisualization';

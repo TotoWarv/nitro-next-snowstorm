@@ -222,8 +222,10 @@ export const registerSnowWarHandlers = ({ subscribe, send }: WebSocketConnection
             endSnowWarMatch();
 
             if (game().results) {
-                game().setAfterSki(!game().rematchRequested);
-                game().setAwaitingRematch(game().rematchRequested);
+                const rematchConfirmed = game().rematchRequested && game().rematchUserIds.includes(userStore.getState().userId);
+
+                game().setAfterSki(!rematchConfirmed);
+                game().setAwaitingRematch(rematchConfirmed);
             } else {
                 game().resetGame();
             }

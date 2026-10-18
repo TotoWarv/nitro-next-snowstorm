@@ -1,6 +1,7 @@
 export * from './AnimatedFurnitureVisualization';
 export * from './AnimatedFurnitureVisualizationData';
 export * from './AvatarFurnitureVisualizationData';
+export * from './backgroundImageOffset';
 export * from './ExternalIsometricImageFurniVisualization';
 export * from './FurnitureBadgeDisplayVisualization';
 export * from './FurnitureBottleVisualization';
